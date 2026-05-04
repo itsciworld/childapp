@@ -498,8 +498,7 @@ Backend API
 ## 📊 PROJECT HEALTH SCORE
 
 | Category | Score | Status |
-|----------|-------|--------|
-| **Core Functionality** | 70% | 🟡 Good but incomplete |
+|-
 | **API Integration** | 75% | 🟡 Most endpoints working |
 | **Code Quality** | 60% | 🟡 Needs improvement |
 | **Error Handling** | 40% | 🔴 Needs work |
