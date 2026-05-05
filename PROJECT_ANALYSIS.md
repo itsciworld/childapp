@@ -499,7 +499,6 @@ Backend API
 
 | Category | Score | Status |
 |-
-| **API Integration** | 75% | 🟡 Most endpoints working |
 | **Code Quality** | 60% | 🟡 Needs improvement |
 | **Error Handling** | 40% | 🔴 Needs work |
 | **Security** | 50% | 🟡 Basic security only |
