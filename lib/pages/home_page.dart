@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:vigil1/route_names.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -38,8 +39,7 @@ class HomePage extends StatelessWidget {
                   bottom: 100), // Padding to create space from the bottom edge
               child: ElevatedButton(
                 onPressed: () {
-                  Navigator.pushNamed(
-                      context, '/terms'); // Adjust the route name as needed
+                  Navigator.pushNamed(context, RouteNames.terms);
                 },
                 style: ElevatedButton.styleFrom(
                   padding:

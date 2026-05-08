@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
-import 'package:vigil1/route_names.dart';
+import 'package:vigil1/navigation_helper.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -36,7 +36,7 @@ class LoginPageState extends State<LoginPage> {
     debugPrint('[LOGIN] Loading started');
 
     final url =
-        Uri.parse('https://vigil-admin-backend.onrender.com/api/auth/login');
+        Uri.parse('https://vigil-backend-jays.onrender.com/api/auth/login');
 
     debugPrint('[LOGIN] POST → $url');
 
@@ -47,7 +47,7 @@ class LoginPageState extends State<LoginPage> {
             headers: {'Content-Type': 'application/json'},
             body: json.encode({'email': email, 'password': password}),
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 35));
 
       debugPrint('[LOGIN] ── Response received ──');
       debugPrint('[LOGIN] Status code : ${response.statusCode}');
@@ -74,11 +74,7 @@ class LoginPageState extends State<LoginPage> {
             '[LOGIN] Token OK (first 20): ${token.substring(0, token.length.clamp(0, 20))}...');
         debugPrint('[LOGIN] Navigating to /otp');
 
-        Navigator.pushNamed(
-          context,
-          RouteNames.otp,
-          arguments: {'email': email, 'token': token},
-        );
+        Nav.toOtp(context, email, token);
       } else {
         debugPrint('[LOGIN] ERROR: non-200 status ${response.statusCode}');
         debugPrint('[LOGIN] Error body: ${response.body}');
@@ -162,29 +158,46 @@ class LoginPageState extends State<LoginPage> {
             const Spacer(),
             Padding(
               padding: const EdgeInsets.only(bottom: 16.0),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _loginAndSendOTP,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black,
-                    disabledBackgroundColor: Colors.grey,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Column(
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : _loginAndSendOTP,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.black,
+                        disabledBackgroundColor: Colors.grey,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Text(
+                              'Sign In',
+                              style:
+                                  TextStyle(color: Colors.white, fontSize: 18),
+                            ),
+                    ),
                   ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : const Text(
-                          'Sign In',
-                          style: TextStyle(color: Colors.white, fontSize: 18),
-                        ),
-                ),
+                  const SizedBox(height: 16),
+                  Center(
+                    child: TextButton(
+                      onPressed: () {
+                        Nav.toRegister(context);
+                      },
+                      child: const Text(
+                        "Don't have an account? Sign Up",
+                        style: TextStyle(color: Colors.black),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

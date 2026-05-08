@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
+import 'package:vigil1/navigation_helper.dart';
+
 class OTPPage extends StatefulWidget {
   final String email;
 
@@ -116,7 +118,10 @@ class _OTPPageState extends State<OTPPage> {
               child: SizedBox(
                 width: double.infinity, // Make the button full-width
                 child: ElevatedButton(
-                  onPressed: _verifyOTPAndPairDevice,
+                  // onPressed: _verifyOTPAndPairDevice,
+                  onPressed: () {
+                    Nav.toWelcome(context);
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(vertical: 16),

@@ -11,10 +11,16 @@ dependencies:
   flutter:
     sdk: flutter
   http: ^1.2.0
-  device_info_plus: ^13.1.0
-  cupertino_icons: ^1.0.6
+  device_info_plus: ^10.1.0
+  permission_handler: ^12.0.1
+  flutter_background_service: ^5.1.0
   shared_preferences: ^2.3.0
-
+  dio: ^5.9.2
+  cupertino_icons: ^1.0.6
+  flutter_local_notifications: ^21.0.0
+  call_log: ^6.0.1
+  flutter_sms_inbox: ^1.0.4
+  
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -31,14 +37,14 @@ flutter:
     - family: Inter
       fonts:
         - asset: assets/fonts/Inter-Regular.ttf
-        - asset: assets/fonts/Inter-Black.ttf
-        - asset: assets/fonts/Inter-ExtraBold.ttf
-        - asset: assets/fonts/Inter-ExtraLight.ttf
-        - asset: assets/fonts/Inter-Light.ttf
-        - asset: assets/fonts/Inter-Medium.ttf
-        - asset: assets/fonts/Inter-Regular.ttf
-        - asset: assets/fonts/Inter-SemiBold.ttf
-        - asset: assets/fonts/Inter-Bold.ttf
+        # - asset: assets/fonts/Inter-Black.ttf
+        # - asset: assets/fonts/Inter-ExtraBold.ttf
+        # - asset: assets/fonts/Inter-ExtraLight.ttf
+        # - asset: assets/fonts/Inter-Light.ttf
+        # - asset: assets/fonts/Inter-Medium.ttf
+        # - asset: assets/fonts/Inter-Regular.ttf
+        # - asset: assets/fonts/Inter-SemiBold.ttf
+        # - asset: assets/fonts/Inter-Bold.ttf
 
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/custom-fonts/#from-packages

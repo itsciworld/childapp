@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
+import 'package:vigil1/navigation_helper.dart';
+
 class LinkParentDevicePage extends StatefulWidget {
   final String email;
   final String token;
@@ -117,7 +119,10 @@ class _LinkParentDevicePageState extends State<LinkParentDevicePage> {
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _isCodeComplete() ? _verifyPairingCode : null,
+                  // onPressed: _isCodeComplete() ? _verifyPairingCode : null,
+                  onPressed: () {
+                    Nav.toWelcome(context);
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(vertical: 16),

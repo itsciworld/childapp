@@ -4,10 +4,10 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class WelcomePage extends StatefulWidget {
-  final String? childId;
-  final String? token;
+  // final String? childId;
+  // final String? token;
 
-  const WelcomePage({super.key, this.childId, this.token});
+  const WelcomePage({super.key});
 
   @override
   _WelcomePageState createState() => _WelcomePageState();
@@ -24,22 +24,22 @@ class _WelcomePageState extends State<WelcomePage> {
   @override
   void initState() {
     super.initState();
-    _loadLoginState();
+    // _loadLoginState();
   }
 
-  Future<void> _loadLoginState() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    childId = prefs.getString('childId') ?? widget.childId;
-    token = prefs.getString('token') ?? widget.token;
+  // Future<void> _loadLoginState() async {
+  //   SharedPreferences prefs = await SharedPreferences.getInstance();
+  //   childId = prefs.getString('childId') ?? widget.childId;
+  //   token = prefs.getString('token') ?? widget.token;
 
-    if (childId != null && token != null) {
-      _fetchChildDetails();
-    } else {
-      setState(() {
-        isLoading = false;
-      });
-    }
-  }
+  //   if (childId != null && token != null) {
+  //     _fetchChildDetails();
+  //   } else {
+  //     setState(() {
+  //       isLoading = false;
+  //     });
+  //   }
+  // }
 
   Future<void> _fetchChildDetails() async {
     final url = Uri.parse(

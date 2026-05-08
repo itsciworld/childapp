@@ -15,6 +15,11 @@ class Nav {
     Navigator.pushNamed(context, RouteNames.login);
   }
 
+  /// Navigate to register
+  static void toRegister(BuildContext context) {
+    Navigator.pushNamed(context, RouteNames.register);
+  }
+
   /// Navigate to terms
   static void toTerms(BuildContext context) {
     Navigator.pushNamed(context, RouteNames.terms);
@@ -130,11 +135,20 @@ class Nav {
   }
 
   /// Navigate to welcome
-  static void toWelcome(BuildContext context, String childId, String token) {
+  // static void toWelcome(BuildContext context, String childId, String token) {
+  //   Navigator.pushNamed(
+  //     context,
+  //     RouteNames.welcome,
+  //     arguments: {'childId': childId, 'token': token},
+  //   );
+  // }
+  static void toWelcome(
+    BuildContext context,
+  ) {
     Navigator.pushNamed(
       context,
       RouteNames.welcome,
-      arguments: {'childId': childId, 'token': token},
+      // arguments: {'childId': childId, 'token': token},
     );
   }
 

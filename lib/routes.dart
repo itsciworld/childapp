@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:vigil1/pages/registration_page.dart';
 import 'route_names.dart';
 import 'pages/home_page.dart';
 import 'pages/login_page.dart';
@@ -22,6 +23,7 @@ class AppRoutes {
   static Map<String, WidgetBuilder> get routes => {
         // Main routes
         RouteNames.home: (context) => const HomePage(),
+        RouteNames.register: (context) => const RegistrationPage(),
         RouteNames.login: (context) => const LoginPage(),
         RouteNames.terms: (context) => const TermsPage(),
         RouteNames.welcome: (context) => _buildWelcomePage(context),
@@ -195,8 +197,8 @@ class AppRoutes {
       return _errorPage('Missing childId or token');
     }
     return WelcomePage(
-      childId: args['childId']!,
-      token: args['token']!,
-    );
+        // childId: args['childId']!,
+        // token: args['token']!,
+        );
   }
 }

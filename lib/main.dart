@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:vigil1/services/background_services/background_services.dart';
 import 'route_names.dart';
 import 'routes.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await BackgroundService.initializeService();
   runApp(const MyApp());
 }
 

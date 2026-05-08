@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:vigil1/route_names.dart';
 
 class TermsPage extends StatefulWidget {
   const TermsPage({super.key});
@@ -81,7 +82,7 @@ class _TermsPageState extends State<TermsPage> {
               child: TextButton(
                 onPressed: _isAccepted
                     ? () {
-                        Navigator.pushNamed(context, '/login');
+                        Navigator.pushNamed(context, RouteNames.login);
                       }
                     : null,
                 style: TextButton.styleFrom(
