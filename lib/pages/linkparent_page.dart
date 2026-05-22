@@ -8,8 +8,7 @@ class LinkParentDevicePage extends StatefulWidget {
   final String email;
   final String token;
 
-  const LinkParentDevicePage(
-      {super.key, required this.email, required this.token});
+  const LinkParentDevicePage({super.key, required this.email, this.token = ''});
 
   @override
   _LinkParentDevicePageState createState() => _LinkParentDevicePageState();
@@ -32,7 +31,7 @@ class _LinkParentDevicePageState extends State<LinkParentDevicePage> {
     String otp = _controllers.map((controller) => controller.text).join();
 
     final url = Uri.parse(
-        'https://vigil-admin-backend.onrender.com/api/children/verify-pairing-code');
+        'http://160-153-179-249.sslip.io/api/children/verify-pairing-code');
     final response = await http.post(
       url,
       headers: {
@@ -119,10 +118,10 @@ class _LinkParentDevicePageState extends State<LinkParentDevicePage> {
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  // onPressed: _isCodeComplete() ? _verifyPairingCode : null,
-                  onPressed: () {
-                    Nav.toWelcome(context);
-                  },
+                  onPressed: _isCodeComplete() ? _verifyPairingCode : null,
+                  // onPressed: () {
+                  //   Nav.toWelcome(context);
+                  // },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(vertical: 16),
