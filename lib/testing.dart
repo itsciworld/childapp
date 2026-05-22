@@ -397,7 +397,7 @@ class _DeviceInfoScreenState extends State<DeviceInfoScreen>
 
       final items = <InfoItem>[
         InfoItem('Total Calls Found', entries.length.toString()),
-        const InfoItem('Showing', 'Last 10 entries'),
+        const InfoItem('Showing', '10 entries'),
         const InfoItem('─────────────', '──────────'),
       ];
 
