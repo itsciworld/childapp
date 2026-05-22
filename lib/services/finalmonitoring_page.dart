@@ -46,6 +46,7 @@ class _StartMonitoringState extends State<StartMonitoring> {
       deviceName = 'Failed to get device name: $e';
     }
 
+    if (!mounted) return;
     setState(() {
       this.deviceName = deviceName!;
     });
@@ -80,13 +81,14 @@ class _StartMonitoringState extends State<StartMonitoring> {
 
     if (response.statusCode == 200) {
       // Successfully updated device name, navigate to the next screen
-      Navigator.pushNamed(context, '/welcomepage', arguments: {
+      if (!mounted) return;
+      Navigator.pushNamed(context, '/welcome', arguments: {
         'childId': widget.childId,
         'token': widget.token,
       });
     } else {
       // Handle error
-      print('Failed to update device name: ${response.body}');
+      debugPrint('Failed to update device name: ${response.body}');
     }
   }
 

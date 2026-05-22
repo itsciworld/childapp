@@ -196,7 +196,7 @@ class AppRoutes {
     if (args == null || args['childId'] == null || args['token'] == null) {
       return _errorPage('Missing childId or token');
     }
-    return WelcomePage(
+    return const WelcomePage(
         // childId: args['childId']!,
         // token: args['token']!,
         );
