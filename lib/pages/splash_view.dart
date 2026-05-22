@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:vigil1/route_names.dart';
 
-class HomePage extends StatelessWidget {
-  const HomePage({super.key});
+class SplashView extends StatelessWidget {
+  const SplashView({super.key});
 
   @override
   Widget build(BuildContext context) {

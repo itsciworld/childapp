@@ -41,6 +41,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/logo.png
+    - .env
 
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/custom-fonts/#from-packages

@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:vigil1/pages/registration_page.dart';
 import 'route_names.dart';
-import 'pages/home_page.dart';
-import 'pages/login_page.dart';
+import 'pages/splash_view.dart';
+import 'features/auth/view/login_page.dart';
+import 'features/verify_otp/view/verify_otp_page.dart';
 import 'pages/terms_page.dart';
 import 'pages/welcome_page.dart';
 import 'pages/linkparent_page.dart';
-import 'pages/addchildprofile_page.dart';
 import 'pages/allowpermission_page.dart';
 import 'services/disableplayprotect_page.dart';
 import 'services/activateaccessibility_page.dart';
@@ -22,7 +22,7 @@ class AppRoutes {
 
   static Map<String, WidgetBuilder> get routes => {
         // Main routes
-        RouteNames.home: (context) => const HomePage(),
+        RouteNames.home: (context) => const SplashView(),
         RouteNames.register: (context) => const RegistrationPage(),
         RouteNames.login: (context) => const LoginPage(),
         RouteNames.terms: (context) => const TermsPage(),
@@ -30,7 +30,8 @@ class AppRoutes {
 
         // Setup flow
         RouteNames.otp: (context) => _buildOtpPage(context),
-        RouteNames.childProfile: (context) => _buildChildProfilePage(context),
+        RouteNames.verifyOtp: (context) => const VerifyOtpPage(),
+        // RouteNames.childProfile: (context) => _buildChildProfilePage(context),
         RouteNames.allowPermission: (context) =>
             _buildAllowPermissionPage(context),
 
@@ -68,29 +69,29 @@ class AppRoutes {
   // Route builders
   static Widget _buildOtpPage(BuildContext context) {
     final args = _getArgs(context);
-    if (args == null || args['email'] == null || args['token'] == null) {
-      return _errorPage('Missing email or token');
+    if (args == null || args['email'] == null) {
+      return _errorPage('Missing email');
     }
     return LinkParentDevicePage(
       email: args['email']!,
-      token: args['token']!,
+      token: args['token'] ?? '',
     );
   }
 
-  static Widget _buildChildProfilePage(BuildContext context) {
-    final args = _getArgs(context);
-    if (args == null ||
-        args['email'] == null ||
-        args['token'] == null ||
-        args['otp'] == null) {
-      return _errorPage('Missing required arguments');
-    }
-    return AddChildProfilePage(
-      email: args['email']!,
-      token: args['token']!,
-      otp: args['otp']!,
-    );
-  }
+  // static Widget _buildChildProfilePage(BuildContext context) {
+  //   final args = _getArgs(context);
+  //   if (args == null ||
+  //       args['email'] == null ||
+  //       args['token'] == null ||
+  //       args['otp'] == null) {
+  //     return _errorPage('Missing required arguments');
+  //   }
+  //   return AddChildProfilePage(
+  //     email: args['email']!,
+  //     token: args['token']!,
+  //     otp: args['otp']!,
+  //   );
+  // }
 
   static Widget _buildAllowPermissionPage(BuildContext context) {
     final args = _getArgs(context);

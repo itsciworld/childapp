@@ -25,12 +25,28 @@ class Nav {
     Navigator.pushNamed(context, RouteNames.terms);
   }
 
-  /// Navigate to OTP page
-  static void toOtp(BuildContext context, String email, String token) {
+  /// Navigate to OTP page.
+  ///
+  /// [token] is optional — the login-and-send-otp step does not return one;
+  /// a token is only issued later, after OTP verification.
+  static void toOtp(BuildContext context, String email,
+      [String token = '']) {
     Navigator.pushNamed(
       context,
       RouteNames.otp,
       arguments: {'email': email, 'token': token},
+    );
+  }
+
+  /// Navigate to the verify-OTP screen.
+  ///
+  /// The parent enters the emailed OTP plus the child's name and age here;
+  /// [email] is carried over from the login screen.
+  static void toVerifyOtp(BuildContext context, String email) {
+    Navigator.pushNamed(
+      context,
+      RouteNames.verifyOtp,
+      arguments: {'email': email},
     );
   }
 
