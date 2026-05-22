@@ -50,6 +50,18 @@ class Nav {
     );
   }
 
+  /// Navigate to the pairing screen.
+  ///
+  /// Alternative to the verify-OTP flow — the parent enters a pairing code
+  /// generated on their Vigil app. [email] is carried over from login.
+  static void toPairing(BuildContext context, String email) {
+    Navigator.pushNamed(
+      context,
+      RouteNames.pairing,
+      arguments: {'email': email},
+    );
+  }
+
   /// Navigate to child profile
   static void toChildProfile(
       BuildContext context, String email, String token, String otp) {

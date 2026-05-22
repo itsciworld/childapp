@@ -4,9 +4,10 @@ import 'route_names.dart';
 import 'pages/splash_view.dart';
 import 'features/auth/view/login_page.dart';
 import 'features/verify_otp/view/verify_otp_page.dart';
+import 'features/pairing/view/pairing_page.dart';
 import 'pages/terms_page.dart';
 import 'pages/welcome_page.dart';
-import 'pages/linkparent_page.dart';
+
 import 'pages/allowpermission_page.dart';
 import 'services/disableplayprotect_page.dart';
 import 'services/activateaccessibility_page.dart';
@@ -23,14 +24,15 @@ class AppRoutes {
   static Map<String, WidgetBuilder> get routes => {
         // Main routes
         RouteNames.home: (context) => const SplashView(),
-        RouteNames.register: (context) => const RegistrationPage(),
+
         RouteNames.login: (context) => const LoginPage(),
         RouteNames.terms: (context) => const TermsPage(),
         RouteNames.welcome: (context) => _buildWelcomePage(context),
 
         // Setup flow
-        RouteNames.otp: (context) => _buildOtpPage(context),
+        // RouteNames.otp: (context) => _buildOtpPage(context),
         RouteNames.verifyOtp: (context) => const VerifyOtpPage(),
+        RouteNames.pairing: (context) => const PairingPage(),
         // RouteNames.childProfile: (context) => _buildChildProfilePage(context),
         RouteNames.allowPermission: (context) =>
             _buildAllowPermissionPage(context),
@@ -66,17 +68,17 @@ class AppRoutes {
     );
   }
 
-  // Route builders
-  static Widget _buildOtpPage(BuildContext context) {
-    final args = _getArgs(context);
-    if (args == null || args['email'] == null) {
-      return _errorPage('Missing email');
-    }
-    return LinkParentDevicePage(
-      email: args['email']!,
-      token: args['token'] ?? '',
-    );
-  }
+  // // Route builders
+  // static Widget _buildOtpPage(BuildContext context) {
+  //   final args = _getArgs(context);
+  //   if (args == null || args['email'] == null) {
+  //     return _errorPage('Missing email');
+  //   }
+  //   return LinkParentDevicePage(
+  //     email: args['email']!,
+  //     token: args['token'] ?? '',
+  //   );
+  // }
 
   // static Widget _buildChildProfilePage(BuildContext context) {
   //   final args = _getArgs(context);

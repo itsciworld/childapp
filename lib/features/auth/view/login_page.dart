@@ -104,8 +104,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   icon: Icon(
                     _obscureText ? Icons.visibility : Icons.visibility_off,
                   ),
-                  onPressed: () =>
-                      setState(() => _obscureText = !_obscureText),
+                  onPressed: () => setState(() => _obscureText = !_obscureText),
                 ),
               ),
             ),
@@ -134,21 +133,21 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                             )
                           : const Text(
                               'Sign In',
-                              style: TextStyle(
-                                  color: Colors.white, fontSize: 18),
+                              style:
+                                  TextStyle(color: Colors.white, fontSize: 18),
                             ),
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Center(
-                    child: TextButton(
-                      onPressed: () => Nav.toRegister(context),
-                      child: const Text(
-                        "Don't have an account? Sign Up",
-                        style: TextStyle(color: Colors.black),
-                      ),
-                    ),
-                  ),
+                  // Center(
+                  //   child: TextButton(
+                  //     onPressed: () => Nav.toRegister(context),
+                  //     child: const Text(
+                  //       "Don't have an account? Sign Up",
+                  //       style: TextStyle(color: Colors.black),
+                  //     ),
+                  //   ),
+                  // ),
                 ],
               ),
             ),

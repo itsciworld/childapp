@@ -12,6 +12,7 @@ class RouteNames {
   // Setup flow
   static const String otp = '/otp';
   static const String verifyOtp = '/verifyOtp';
+  static const String pairing = '/pairing';
   static const String childProfile = '/childProfile';
   static const String allowPermission = '/allowPermission';
 

@@ -133,30 +133,44 @@ class _VerifyOtpPageState extends ConsumerState<VerifyOtpPage> {
             const Spacer(),
             Padding(
               padding: const EdgeInsets.only(bottom: 16.0),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: state.isLoading ? null : _onSubmit,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black,
-                    disabledBackgroundColor: Colors.grey,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Column(
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: state.isLoading ? null : _onSubmit,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.black,
+                        disabledBackgroundColor: Colors.grey,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      child: state.isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Text(
+                              'Submit',
+                              style: TextStyle(
+                                  color: Colors.white, fontSize: 18),
+                            ),
+                    ),
                   ),
-                  child: state.isLoading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : const Text(
-                          'Submit',
-                          style:
-                              TextStyle(color: Colors.white, fontSize: 18),
-                        ),
-                ),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: state.isLoading
+                        ? null
+                        : () => Nav.toPairing(context, _email),
+                    child: const Text(
+                      'Have a pairing code instead?',
+                      style: TextStyle(color: Colors.black),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
