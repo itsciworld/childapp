@@ -138,16 +138,17 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                             ),
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  // Center(
-                  //   child: TextButton(
-                  //     onPressed: () => Nav.toRegister(context),
-                  //     child: const Text(
-                  //       "Don't have an account? Sign Up",
-                  //       style: TextStyle(color: Colors.black),
-                  //     ),
-                  //   ),
-                  // ),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: state.isLoading
+                        ? null
+                        : () => Nav.toPairing(
+                            context, _emailController.text.trim()),
+                    child: const Text(
+                      'Have a pairing code instead?',
+                      style: TextStyle(color: Colors.black),
+                    ),
+                  ),
                 ],
               ),
             ),
