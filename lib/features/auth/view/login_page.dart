@@ -1,5 +1,9 @@
+import 'package:flexi_form_field/flexi_form_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:vigil1/core/appColor/app_theme/app_gradient.dart';
+import 'package:vigil1/core/appimages/app_images.dart';
+import 'package:vigil1/core/widgets/custom_button.dart';
 
 import '../../../navigation_helper.dart';
 import '../viewmodel/login_state.dart';
@@ -15,9 +19,22 @@ class LoginPage extends ConsumerStatefulWidget {
 }
 
 class _LoginPageState extends ConsumerState<LoginPage> {
+  final _formKey = GlobalKey<FormState>();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  bool _obscureText = true;
+  bool _obscurePassword = true;
+
+  static const Color _darkNavy = Color(0xFF1A237E);
+  static const Color _accentGreen = Color(0xFF15BEB5);
+  static const Color _accentBlue = Color(0xFF2BA0CC);
+
+  FlexiFormTheme get _fieldTheme => FlexiFormTheme(
+        primaryColor: _darkNavy,
+        borderRadius: const BorderRadius.all(Radius.circular(10)),
+        fillColor: Colors.grey.shade50,
+        labelStyle: const TextStyle(color: Colors.black87),
+        errorStyle: const TextStyle(color: Colors.red, fontSize: 12),
+      );
 
   @override
   void dispose() {
@@ -28,14 +45,26 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   void _onSignIn() {
     FocusScope.of(context).unfocus();
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+
     ref.read(loginViewModelProvider.notifier).login(
-          email: _emailController.text,
+          email: _emailController.text.trim(),
           password: _passwordController.text,
         );
   }
 
   @override
   Widget build(BuildContext context) {
+    final mq = MediaQuery.of(context);
+    final screenH = mq.size.height;
+    final screenW = mq.size.width;
+    final isSmall = screenH < 680;
+
+    final hPad = screenW * 0.06;
+    final logoBoxH = screenH * 0.30;
+    final vGapSm = screenH * 0.015;
+    final vGapMd = screenH * 0.022;
+
     // React to state changes for side effects (navigation / snackbars).
     ref.listen<LoginState>(loginViewModelProvider, (previous, next) {
       if (next.status == LoginStatus.success && next.response != null) {
@@ -60,100 +89,280 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final state = ref.watch(loginViewModelProvider);
 
     return Scaffold(
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            const SizedBox(height: 60),
-            const Text(
-              'Protect Your Child With',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const Text(
-              'Vigil 1',
-              style: TextStyle(
-                fontSize: 36,
-                fontWeight: FontWeight.bold,
-                color: Colors.lightBlue,
-              ),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'Sign in to get started.',
-              style: TextStyle(fontSize: 16, color: Colors.grey),
-            ),
-            const SizedBox(height: 20),
-            TextField(
-              controller: _emailController,
-              keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(
-                labelText: 'Email',
-                hintText: 'jhondoe@gmail.com',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 20),
-            TextField(
-              controller: _passwordController,
-              obscureText: _obscureText,
-              decoration: InputDecoration(
-                labelText: 'Password',
-                border: const OutlineInputBorder(),
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _obscureText ? Icons.visibility : Icons.visibility_off,
+      backgroundColor: Colors.white,
+      resizeToAvoidBottomInset: true,
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: IntrinsicHeight(
+                  child: Column(
+                    children: [
+                      _HeroSection(
+                        height: logoBoxH,
+                        darkNavy: _darkNavy,
+                        accentBlue: _accentBlue,
+                      ),
+                      Container(
+                        width: double.infinity,
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.vertical(
+                            top: Radius.circular(30),
+                          ),
+                        ),
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(horizontal: hPad),
+                          child: Form(
+                            key: _formKey,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                SizedBox(height: vGapMd * 1.2),
+                                Text(
+                                  'Welcome ',
+                                  style: TextStyle(
+                                    fontSize: isSmall ? 22 : 26,
+                                    fontWeight: FontWeight.w800,
+                                    color: _darkNavy,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Login to your account to continue',
+                                  style: TextStyle(
+                                    fontSize: isSmall ? 12 : 13.5,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                                SizedBox(height: vGapMd),
+                                const FieldLabel(text: 'Email', required: true),
+                                const SizedBox(height: 6),
+                                FlexiFormField(
+                                  controller: _emailController,
+                                  hint: 'Enter Parent Email',
+                                  isEmail: true,
+                                  isMandatory: true,
+                                  denySpace: true,
+                                  keyboardType: TextInputType.emailAddress,
+                                  fieldStyle: FlexiFieldStyle.outline,
+                                  theme: _fieldTheme,
+                                  prefixIcon: Icon(
+                                    Icons.email_outlined,
+                                    size: 20,
+                                    color: Colors.grey.shade500,
+                                  ),
+                                ),
+                                SizedBox(height: vGapSm),
+                                const FieldLabel(
+                                    text: 'Password', required: true),
+                                const SizedBox(height: 6),
+                                FlexiFormField(
+                                  controller: _passwordController,
+                                  hint: 'Enter Parent Password',
+                                  obscureText: _obscurePassword,
+                                  isMandatory: true,
+                                  fieldStyle: FlexiFieldStyle.outline,
+                                  theme: _fieldTheme,
+                                  prefixIcon: Icon(
+                                    Icons.lock_outline_rounded,
+                                    size: 20,
+                                    color: Colors.grey.shade500,
+                                  ),
+                                  suffixIcon: IconButton(
+                                    icon: Icon(
+                                      _obscurePassword
+                                          ? Icons.visibility_off_outlined
+                                          : Icons.visibility_outlined,
+                                      color: Colors.grey.shade500,
+                                    ),
+                                    onPressed: () {
+                                      setState(() {
+                                        _obscurePassword = !_obscurePassword;
+                                      });
+                                    },
+                                  ),
+                                ),
+                                SizedBox(height: vGapMd * 1.4),
+                                CustomButton(
+                                  label: 'Sign In',
+                                  isLoading: state.isLoading,
+                                  height: screenH * 0.055,
+                                  gradient: AppGradients.primaryButton,
+                                  onTap: state.isLoading ? null : _onSignIn,
+                                ),
+                                SizedBox(height: vGapMd),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                        child: Divider(
+                                            color: Colors.grey.shade300)),
+                                    const Padding(
+                                      padding:
+                                          EdgeInsets.symmetric(horizontal: 12),
+                                      child: Text(
+                                        'OR',
+                                        style: TextStyle(
+                                          color: Color(0xFF9E9E9E),
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                        child: Divider(
+                                            color: Colors.grey.shade300)),
+                                  ],
+                                ),
+                                SizedBox(height: vGapMd),
+                                Center(
+                                  child: GestureDetector(
+                                    onTap: state.isLoading
+                                        ? null
+                                        : () => Nav.toPairing(context,
+                                            _emailController.text.trim()),
+                                    child: const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          'Have a pairing code? ',
+                                          style: TextStyle(
+                                            fontSize: 13.5,
+                                            color: Colors.black87,
+                                          ),
+                                        ),
+                                        Text(
+                                          'Pair device',
+                                          style: TextStyle(
+                                            fontSize: 13.5,
+                                            color: _accentGreen,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(height: vGapMd),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  onPressed: () => setState(() => _obscureText = !_obscureText),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Hero / Logo Section
+// ---------------------------------------------------------------------------
+
+class _HeroSection extends StatelessWidget {
+  const _HeroSection({
+    required this.height,
+    required this.darkNavy,
+    required this.accentBlue,
+  });
+
+  final double height;
+  final Color darkNavy;
+  final Color accentBlue;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: height,
+      width: double.infinity,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            bottom: -20,
+            left: -30,
+            child: _Blob(size: height * 0.6, color: const Color(0xFFEBF6FF)),
+          ),
+          Positioned(
+            bottom: -10,
+            right: -20,
+            child: _Blob(
+              size: height * 0.5,
+              color: const Color(0xFFBAE4C8).withValues(alpha: 0.16),
+            ),
+          ),
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: SizedBox(
+                width: height * 0.99,
+                height: height * 0.99,
+                child: Padding(
+                  padding: const EdgeInsets.all(1),
+                  child: Image.asset(AppImages.logo, fit: BoxFit.contain),
                 ),
               ),
             ),
-            const Spacer(),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 16.0),
-              child: Column(
-                children: [
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: state.isLoading ? null : _onSignIn,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.black,
-                        disabledBackgroundColor: Colors.grey,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
-                      child: state.isLoading
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : const Text(
-                              'Sign In',
-                              style:
-                                  TextStyle(color: Colors.white, fontSize: 18),
-                            ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextButton(
-                    onPressed: state.isLoading
-                        ? null
-                        : () => Nav.toPairing(
-                            context, _emailController.text.trim()),
-                    child: const Text(
-                      'Have a pairing code instead?',
-                      style: TextStyle(color: Colors.black),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Blob extends StatelessWidget {
+  const _Blob({required this.size, required this.color});
+  final double size;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Field label helper
+// ---------------------------------------------------------------------------
+
+class FieldLabel extends StatelessWidget {
+  const FieldLabel({super.key, required this.text, this.required = false});
+  final String text;
+  final bool required;
+
+  @override
+  Widget build(BuildContext context) {
+    return RichText(
+      text: TextSpan(
+        text: text,
+        style: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: Colors.black87,
         ),
+        children: required
+            ? const [
+                TextSpan(
+                  text: ' *',
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ]
+            : null,
       ),
     );
   }

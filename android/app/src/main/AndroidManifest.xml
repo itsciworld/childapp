@@ -35,9 +35,9 @@
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
 
     <application
-        android:label="vigil1"
+        android:label="Vigil-Child"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@mipmap/launcher_icon"
         android:usesCleartextTraffic="true"> <!-- Needed if your API is http instead of https -->
 
         <activity

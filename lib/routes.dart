@@ -1,21 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:vigil1/pages/registration_page.dart';
 import 'route_names.dart';
 import 'pages/splash_view.dart';
 import 'features/auth/view/login_page.dart';
 import 'features/verify_otp/view/verify_otp_page.dart';
 import 'features/pairing/view/pairing_page.dart';
+import 'features/permissions/view/permissions_page.dart';
 import 'pages/terms_page.dart';
 import 'pages/welcome_page.dart';
-
 import 'pages/allowpermission_page.dart';
-import 'services/disableplayprotect_page.dart';
-import 'services/activateaccessibility_page.dart';
-import 'services/activateappsupervision_page.dart';
-import 'services/activatenotificationaccess_page.dart';
-import 'services/activateadministratoraccess_page.dart';
-import 'services/activatedataaccess_page.dart';
-import 'services/batteryoptimization_page.dart';
 import 'services/finalmonitoring_page.dart';
 
 class AppRoutes {
@@ -24,34 +16,18 @@ class AppRoutes {
   static Map<String, WidgetBuilder> get routes => {
         // Main routes
         RouteNames.home: (context) => const SplashView(),
-
         RouteNames.login: (context) => const LoginPage(),
         RouteNames.terms: (context) => const TermsPage(),
         RouteNames.welcome: (context) => _buildWelcomePage(context),
 
         // Setup flow
-        // RouteNames.otp: (context) => _buildOtpPage(context),
         RouteNames.verifyOtp: (context) => const VerifyOtpPage(),
         RouteNames.pairing: (context) => const PairingPage(),
-        // RouteNames.childProfile: (context) => _buildChildProfilePage(context),
         RouteNames.allowPermission: (context) =>
             _buildAllowPermissionPage(context),
+        RouteNames.permissions: (context) => const PermissionsPage(),
 
-        // Service activation
-        RouteNames.disablePlayProtect: (context) =>
-            _buildDisablePlayProtectPage(context),
-        RouteNames.activateAccessibility: (context) =>
-            _buildActivateAccessibilityPage(context),
-        RouteNames.activateSupervision: (context) =>
-            _buildActivateSupervisionPage(context),
-        RouteNames.activateNotificationAccess: (context) =>
-            _buildActivateNotificationAccessPage(context),
-        RouteNames.activateAdministratorAccess: (context) =>
-            _buildActivateAdministratorAccessPage(context),
-        RouteNames.activateDataAccess: (context) =>
-            _buildActivateDataAccessPage(context),
-        RouteNames.batteryOptimization: (context) =>
-            _buildBatteryOptimizationPage(context),
+        // Final step
         RouteNames.finalMonitoring: (context) =>
             _buildFinalMonitoringPage(context),
       };
@@ -68,116 +44,12 @@ class AppRoutes {
     );
   }
 
-  // // Route builders
-  // static Widget _buildOtpPage(BuildContext context) {
-  //   final args = _getArgs(context);
-  //   if (args == null || args['email'] == null) {
-  //     return _errorPage('Missing email');
-  //   }
-  //   return LinkParentDevicePage(
-  //     email: args['email']!,
-  //     token: args['token'] ?? '',
-  //   );
-  // }
-
-  // static Widget _buildChildProfilePage(BuildContext context) {
-  //   final args = _getArgs(context);
-  //   if (args == null ||
-  //       args['email'] == null ||
-  //       args['token'] == null ||
-  //       args['otp'] == null) {
-  //     return _errorPage('Missing required arguments');
-  //   }
-  //   return AddChildProfilePage(
-  //     email: args['email']!,
-  //     token: args['token']!,
-  //     otp: args['otp']!,
-  //   );
-  // }
-
   static Widget _buildAllowPermissionPage(BuildContext context) {
     final args = _getArgs(context);
     if (args == null || args['childId'] == null || args['token'] == null) {
       return _errorPage('Missing childId or token');
     }
     return AllowPermissionsPage(
-      childId: args['childId']!,
-      token: args['token']!,
-    );
-  }
-
-  static Widget _buildDisablePlayProtectPage(BuildContext context) {
-    final args = _getArgs(context);
-    if (args == null || args['childId'] == null || args['token'] == null) {
-      return _errorPage('Missing childId or token');
-    }
-    return DisablePlayProtectPage(
-      childId: args['childId']!,
-      token: args['token']!,
-    );
-  }
-
-  static Widget _buildActivateAccessibilityPage(BuildContext context) {
-    final args = _getArgs(context);
-    if (args == null || args['childId'] == null || args['token'] == null) {
-      return _errorPage('Missing childId or token');
-    }
-    return ActivateAccessibilityPage(
-      childId: args['childId']!,
-      token: args['token']!,
-    );
-  }
-
-  static Widget _buildActivateSupervisionPage(BuildContext context) {
-    final args = _getArgs(context);
-    if (args == null || args['childId'] == null || args['token'] == null) {
-      return _errorPage('Missing childId or token');
-    }
-    return ActivateAppSuperVisionPage(
-      childId: args['childId']!,
-      token: args['token']!,
-    );
-  }
-
-  static Widget _buildActivateNotificationAccessPage(BuildContext context) {
-    final args = _getArgs(context);
-    if (args == null || args['childId'] == null || args['token'] == null) {
-      return _errorPage('Missing childId or token');
-    }
-    return ActivateNotificationAccessPage(
-      childId: args['childId']!,
-      token: args['token']!,
-    );
-  }
-
-  static Widget _buildActivateAdministratorAccessPage(BuildContext context) {
-    final args = _getArgs(context);
-    if (args == null || args['childId'] == null || args['token'] == null) {
-      return _errorPage('Missing childId or token');
-    }
-    return ActivateAdministratorAccess(
-      childId: args['childId']!,
-      token: args['token']!,
-    );
-  }
-
-  static Widget _buildActivateDataAccessPage(BuildContext context) {
-    final args = _getArgs(context);
-    if (args == null || args['childId'] == null || args['token'] == null) {
-      return _errorPage('Missing childId or token');
-    }
-    return ActivateDataAccess(
-      childId: args['childId']!,
-      token: args['token']!,
-    );
-  }
-
-  static Widget _buildBatteryOptimizationPage(BuildContext context) {
-    final args = _getArgs(context);
-    if (args == null || args['childId'] == null || args['token'] == null) {
-      return _errorPage('Missing childId or token');
-    }
-    return BatteryOptimization(
       childId: args['childId']!,
       token: args['token']!,
     );
@@ -199,9 +71,6 @@ class AppRoutes {
     if (args == null || args['childId'] == null || args['token'] == null) {
       return _errorPage('Missing childId or token');
     }
-    return const WelcomePage(
-        // childId: args['childId']!,
-        // token: args['token']!,
-        );
+    return const WelcomePage();
   }
 }

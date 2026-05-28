@@ -82,74 +82,12 @@ class Nav {
     );
   }
 
-  /// Navigate to disable play protect
-  static void toDisablePlayProtect(
-      BuildContext context, String childId, String token) {
-    Navigator.pushNamed(
-      context,
-      RouteNames.disablePlayProtect,
-      arguments: {'childId': childId, 'token': token},
-    );
-  }
-
-  /// Navigate to activate accessibility
-  static void toActivateAccessibility(
-      BuildContext context, String childId, String token) {
-    Navigator.pushNamed(
-      context,
-      RouteNames.activateAccessibility,
-      arguments: {'childId': childId, 'token': token},
-    );
-  }
-
-  /// Navigate to activate supervision
-  static void toActivateSupervision(
-      BuildContext context, String childId, String token) {
-    Navigator.pushNamed(
-      context,
-      RouteNames.activateSupervision,
-      arguments: {'childId': childId, 'token': token},
-    );
-  }
-
-  /// Navigate to activate notification access
-  static void toActivateNotificationAccess(
-      BuildContext context, String childId, String token) {
-    Navigator.pushNamed(
-      context,
-      RouteNames.activateNotificationAccess,
-      arguments: {'childId': childId, 'token': token},
-    );
-  }
-
-  /// Navigate to activate administrator access
-  static void toActivateAdministratorAccess(
-      BuildContext context, String childId, String token) {
-    Navigator.pushNamed(
-      context,
-      RouteNames.activateAdministratorAccess,
-      arguments: {'childId': childId, 'token': token},
-    );
-  }
-
-  /// Navigate to activate data access
-  static void toActivateDataAccess(
-      BuildContext context, String childId, String token) {
-    Navigator.pushNamed(
-      context,
-      RouteNames.activateDataAccess,
-      arguments: {'childId': childId, 'token': token},
-    );
-  }
-
-  /// Navigate to battery optimization
-  static void toBatteryOptimization(
-      BuildContext context, String childId, String token) {
-    Navigator.pushNamed(
-      context,
-      RouteNames.batteryOptimization,
-      arguments: {'childId': childId, 'token': token},
-    );
+  /// Navigate to the combined permissions screen.
+  ///
+  /// Single page with one toggle per OS permission — replaces the old
+  /// per-service screens (disable Play Protect, accessibility, battery, ...).
+  static void toPermissions(BuildContext context) {
+    Navigator.pushNamed(context, RouteNames.permissions);
   }
 
   /// Navigate to final monitoring

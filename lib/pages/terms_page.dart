@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:vigil1/core/appColor/app_theme/app_gradient.dart';
+import 'package:vigil1/core/widgets/custom_button.dart';
 import 'package:vigil1/route_names.dart';
 
 class TermsPage extends StatefulWidget {
@@ -77,25 +79,45 @@ class _TermsPageState extends State<TermsPage> {
                 ],
               ),
             ),
+            // Padding(
+            //   padding: const EdgeInsets.only(bottom: 16.0),
+            //   child: TextButton(
+            //     onPressed: _isAccepted
+            //         ? () {
+            //             Navigator.pushNamed(context, RouteNames.login);
+            //           }
+            //         : null,
+            //     style: TextButton.styleFrom(
+            //       backgroundColor: _isAccepted ? Colors.black : Colors.grey,
+            //       minimumSize: const Size(double.infinity, 48),
+            //     ),
+            //     child: const Text(
+            //       'I Accept',
+            //       style: TextStyle(
+            //         color: Colors.white,
+            //         fontSize: 18,
+            //       ),
+            //     ),
+            //   ),
+            // ),
             Padding(
-              padding: const EdgeInsets.only(bottom: 16.0),
-              child: TextButton(
-                onPressed: _isAccepted
+              padding: const EdgeInsets.all(8.0),
+              child: CustomButton(
+                isLoading: false,
+                label: 'I Accept',
+                onTap: _isAccepted
                     ? () {
                         Navigator.pushNamed(context, RouteNames.login);
                       }
                     : null,
-                style: TextButton.styleFrom(
-                  backgroundColor: _isAccepted ? Colors.black : Colors.grey,
-                  minimumSize: const Size(double.infinity, 48),
-                ),
-                child: const Text(
-                  'I Accept',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                  ),
-                ),
+                height: 50,
+                gradient: _isAccepted
+                    ? AppGradients.primaryButton
+                    : const LinearGradient(
+                        colors: [Colors.grey, Colors.grey],
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                      ),
               ),
             ),
           ],

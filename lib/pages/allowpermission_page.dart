@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:vigil1/core/appColor/app_theme/app_gradient.dart';
+import 'package:vigil1/core/widgets/custom_button.dart';
 
 import '../navigation_helper.dart';
 
@@ -122,22 +124,29 @@ class AllowPermissionsPage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => _showConfirmationDialog(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text(
-                    'Continue',
-                    style: TextStyle(color: Colors.white, fontSize: 18),
-                  ),
-                ),
+              // SizedBox(
+              //   width: double.infinity,
+              //   child: ElevatedButton(
+              //     onPressed: () => _showConfirmationDialog(context),
+              //     style: ElevatedButton.styleFrom(
+              //       backgroundColor: Colors.black,
+              //       padding: const EdgeInsets.symmetric(vertical: 16),
+              //       shape: RoundedRectangleBorder(
+              //         borderRadius: BorderRadius.circular(12),
+              //       ),
+              //     ),
+              //     child: const Text(
+              //       'Continue',
+              //       style: TextStyle(color: Colors.white, fontSize: 18),
+              //     ),
+              //   ),
+              // ),
+              CustomButton(
+                isLoading: false,
+                label: 'Continue',
+                onTap: () => _showConfirmationDialog(context),
+                height: 50,
+                gradient: AppGradients.primaryButton,
               ),
             ],
           ),
@@ -179,7 +188,7 @@ class AllowPermissionsPage extends StatelessWidget {
                     onPressed: () {
                       // Close the dialog first, then start the setup flow.
                       Navigator.of(dialogContext).pop();
-                      Nav.toDisablePlayProtect(context, childId, token);
+                      Nav.toPermissions(context);
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.teal,

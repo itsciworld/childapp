@@ -15,16 +15,8 @@ class RouteNames {
   static const String pairing = '/pairing';
   static const String childProfile = '/childProfile';
   static const String allowPermission = '/allowPermission';
+  static const String permissions = '/permissions';
 
-  // Service activation
-  static const String disablePlayProtect = '/disablePlayProtect';
-  static const String activateAccessibility = '/activateAccessibility';
-  static const String activateSupervision = '/activateSupervision';
-  static const String activateNotificationAccess =
-      '/activateNotificationAccess';
-  static const String activateAdministratorAccess =
-      '/activateAdministratorAccess';
-  static const String activateDataAccess = '/activateDataAccess';
-  static const String batteryOptimization = '/batteryOptimization';
+  // Final step
   static const String finalMonitoring = '/finalMonitoring';
 }
