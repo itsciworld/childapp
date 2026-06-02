@@ -1,7 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/device/device_info_service.dart';
 import '../../../core/network/api_exception.dart';
+import '../../../core/storage/device_storage.dart';
 import '../../../core/storage/identity_storage.dart';
 import '../data/models/verify_otp_request.dart';
 import '../data/repositories/verify_otp_repository.dart';
@@ -60,6 +62,15 @@ class VerifyOtpViewModel extends Notifier<VerifyOtpState> {
             parentId: response.parentId,
             childName: trimmedName,
             childAge: age,
+          );
+
+      // Capture this device's name / id and persist them locally, alongside
+      // the backend-issued device key needed for the `x-device-key` header.
+      final device = await ref.read(deviceInfoServiceProvider).read();
+      await ref.read(deviceStorageProvider).save(
+            name: device.name,
+            id: device.id,
+            key: response.deviceKey,
           );
 
       state = state.copyWith(

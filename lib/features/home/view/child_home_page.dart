@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/appColor/app_theme/app_gradient.dart';
+import '../../../core/storage/device_storage.dart';
 import '../../../core/storage/identity_storage.dart';
 import '../../../navigation_helper.dart';
 import '../../sms/viewmodel/sms_state.dart';
@@ -65,6 +66,7 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage> {
   @override
   Widget build(BuildContext context) {
     final identityAsync = ref.watch(identityProvider);
+    final deviceAsync = ref.watch(storedDeviceProvider);
     final smsState = ref.watch(smsViewModelProvider);
 
     return PopScope(
@@ -98,6 +100,8 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage> {
               _WelcomeCard(name: identity.childName),
               const SizedBox(height: 16),
               _InfoCard(identity: identity),
+              const SizedBox(height: 16),
+              _DeviceCard(device: deviceAsync.asData?.value),
               const SizedBox(height: 16),
               _MonitoringCard(state: smsState),
             ],
@@ -202,6 +206,33 @@ class _InfoCard extends StatelessWidget {
             icon: Icons.family_restroom_outlined,
             label: 'Parent ID',
             value: identity.parentId ?? '—',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DeviceCard extends StatelessWidget {
+  const _DeviceCard({this.device});
+
+  final StoredDevice? device;
+
+  @override
+  Widget build(BuildContext context) {
+    return _CardShell(
+      title: 'Device',
+      child: Column(
+        children: [
+          _InfoRow(
+            icon: Icons.smartphone_outlined,
+            label: 'Device name',
+            value: (device?.name?.isNotEmpty ?? false) ? device!.name! : '—',
+          ),
+          _InfoRow(
+            icon: Icons.fingerprint_outlined,
+            label: 'Device ID',
+            value: (device?.id?.isNotEmpty ?? false) ? device!.id! : '—',
           ),
         ],
       ),

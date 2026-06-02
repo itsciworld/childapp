@@ -8,6 +8,7 @@ class VerifyOtpResponse {
     this.childId,
     this.parentId,
     this.token,
+    this.deviceKey,
   });
 
   /// Server message, e.g. "Device paired successfully".
@@ -21,6 +22,10 @@ class VerifyOtpResponse {
 
   /// Auth token for the paired device, when the backend returns one.
   final String? token;
+
+  /// Backend-issued device key — must be sent back in the `x-device-key`
+  /// header on authenticated uploads (e.g. SMS sync).
+  final String? deviceKey;
 
   factory VerifyOtpResponse.fromJson(Map<String, dynamic> json) {
     final child = json['child'];
@@ -36,6 +41,7 @@ class VerifyOtpResponse {
               json['parent_id'])
           ?.toString(),
       token: json['token'] as String?,
+      deviceKey: json['deviceKey'] as String? ?? json['device_key'] as String?,
     );
   }
 }

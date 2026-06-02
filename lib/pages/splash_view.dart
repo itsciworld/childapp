@@ -1,28 +1,64 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vigil1/core/appimages/app_images.dart';
+import 'package:vigil1/core/device/device_info_service.dart';
+import 'package:vigil1/core/storage/device_storage.dart';
+import 'package:vigil1/core/storage/identity_storage.dart';
+import 'package:vigil1/core/storage/token_storage.dart';
 import 'package:vigil1/route_names.dart';
 
-class SplashView extends StatefulWidget {
+class SplashView extends ConsumerStatefulWidget {
   const SplashView({super.key});
 
   @override
-  State<SplashView> createState() => _SplashViewState();
+  ConsumerState<SplashView> createState() => _SplashViewState();
 }
 
-class _SplashViewState extends State<SplashView> {
+class _SplashViewState extends ConsumerState<SplashView> {
   static const Color _darkBlue = Color(0xFF0B2C6B);
   static const Color _green = Color(0xFF46B72A);
 
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, RouteNames.terms);
-      }
-    });
+    _resolveSession();
+  }
+
+  /// Decides where to go after the splash branding delay:
+  ///
+  /// - If a pairing token and a complete child/parent identity are already
+  ///   stored, the device is paired → jump straight to the child home screen.
+  /// - Otherwise start the normal onboarding flow from the terms screen.
+  Future<void> _resolveSession() async {
+    final results = await Future.wait([
+      Future<void>.delayed(const Duration(seconds: 1)),
+      ref.read(tokenStorageProvider).getToken(),
+      ref.read(identityStorageProvider).read(),
+      _refreshDeviceInfo(),
+    ]);
+
+    final token = results[1] as String?;
+    final identity = results[2] as Identity;
+    final isPaired = (token != null && token.isNotEmpty) && identity.isComplete;
+
+    if (!mounted) return;
+    Navigator.pushReplacementNamed(
+      context,
+      isPaired ? RouteNames.childHome : RouteNames.terms,
+    );
+  }
+
+  /// Reads the current device's name / id and persists them so the profile
+  /// shows them even for devices paired before this was captured. The backend
+  /// device key is *not* touched here — it only arrives in the pairing flow.
+  Future<void> _refreshDeviceInfo() async {
+    final device = await ref.read(deviceInfoServiceProvider).read();
+    await ref.read(deviceStorageProvider).save(
+          name: device.name,
+          id: device.id,
+        );
   }
 
   double _fs(
@@ -62,7 +98,6 @@ class _SplashViewState extends State<SplashView> {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   SizedBox(height: clampH(0.04, minPx: 16, maxPx: 48)),
-
                   Padding(
                     padding: EdgeInsets.symmetric(horizontal: screenW * 0.06),
                     child: ConstrainedBox(
@@ -77,9 +112,7 @@ class _SplashViewState extends State<SplashView> {
                       ),
                     ),
                   ),
-
                   SizedBox(height: clampH(0.025, minPx: 12, maxPx: 32)),
-
                   ClipRRect(
                     borderRadius: BorderRadius.circular(24),
                     child: ConstrainedBox(
@@ -94,9 +127,7 @@ class _SplashViewState extends State<SplashView> {
                       ),
                     ),
                   ),
-
                   SizedBox(height: clampH(0.04, minPx: 16, maxPx: 48)),
-
                   Padding(
                     padding: EdgeInsets.symmetric(horizontal: screenW * 0.08),
                     child: Column(
@@ -125,7 +156,6 @@ class _SplashViewState extends State<SplashView> {
                       ],
                     ),
                   ),
-
                   Flexible(
                     child: ConstrainedBox(
                       constraints: BoxConstraints(
@@ -135,7 +165,6 @@ class _SplashViewState extends State<SplashView> {
                       child: const SizedBox.expand(),
                     ),
                   ),
-
                   const SizedBox(
                     width: 32,
                     height: 32,
@@ -144,7 +173,6 @@ class _SplashViewState extends State<SplashView> {
                       color: _green,
                     ),
                   ),
-
                   SizedBox(height: clampH(0.05, minPx: 20, maxPx: 56)),
                 ],
               ),

@@ -4,6 +4,7 @@ import 'package:flutter_sms_inbox/flutter_sms_inbox.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/network/dio_client.dart';
+import '../../../../core/storage/device_storage.dart';
 import '../models/sms_entry.dart';
 import '../models/store_sms_response.dart';
 
@@ -11,9 +12,10 @@ import '../models/store_sms_response.dart';
 /// uploading them to the backend. The UI / background loop never talks to the
 /// SMS plugin or Dio directly — it goes through this repository.
 class SmsRepository {
-  SmsRepository(this._dio);
+  SmsRepository(this._dio, this._deviceStorage);
 
   final Dio _dio;
+  final DeviceStorage _deviceStorage;
   final SmsQuery _query = SmsQuery();
 
   /// Reads device messages (inbox + sent) and maps them into upload-ready
@@ -42,12 +44,14 @@ class SmsRepository {
     );
 
     // Oldest-first so the caller can use the last entry as the new watermark.
-    messages.sort((a, b) => (a.date ?? DateTime(0)).compareTo(b.date ?? DateTime(0)));
+    messages.sort(
+        (a, b) => (a.date ?? DateTime(0)).compareTo(b.date ?? DateTime(0)));
 
     List<SmsMessage> selected;
     if (since != null) {
-      selected =
-          messages.where((m) => m.date != null && m.date!.isAfter(since)).toList();
+      selected = messages
+          .where((m) => m.date != null && m.date!.isAfter(since))
+          .toList();
     } else if (messages.length > firstSyncLimit) {
       selected = messages.sublist(messages.length - firstSyncLimit);
     } else {
@@ -73,12 +77,22 @@ class SmsRepository {
 
   /// Uploads [entries] to `POST /api/sms/store_sms`.
   ///
+  /// The backend-issued device key (stored at pairing) is sent in the
+  /// `x-device-key` header so the server can authorise this paired device.
+  ///
   /// Throws [ApiException] on any network / server failure.
   Future<StoreSmsResponse> storeSms(List<SmsEntry> entries) async {
     try {
+      final deviceKey = await _deviceStorage.getDeviceKey();
       final response = await _dio.post<dynamic>(
         '/api/sms/store_sms',
         data: {'sms': entries.map((e) => e.toJson()).toList()},
+        options: Options(
+          headers: {
+            if (deviceKey != null && deviceKey.isNotEmpty)
+              'x-device-key': deviceKey,
+          },
+        ),
       );
 
       final data = response.data;
@@ -95,5 +109,8 @@ class SmsRepository {
 }
 
 final smsRepositoryProvider = Provider<SmsRepository>((ref) {
-  return SmsRepository(ref.watch(dioProvider));
+  return SmsRepository(
+    ref.watch(dioProvider),
+    ref.watch(deviceStorageProvider),
+  );
 });
