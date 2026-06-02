@@ -41,6 +41,8 @@ class SmsSyncService {
         since: lastSyncedAt,
       );
       if (entries.isEmpty) {
+        // Still a successful pass — record the time so the UI shows liveness.
+        await _syncStorage.setLastRunAt(DateTime.now());
         debugPrint(
           '$_tag no new SMS since '
           '${lastSyncedAt?.toIso8601String() ?? 'never (first run)'}.',
@@ -54,6 +56,7 @@ class SmsSyncService {
       // (entries are oldest-first), so the next run only picks up later SMS.
       final newest = entries.last.date;
       await _syncStorage.setLastSyncedAt(newest);
+      await _syncStorage.setLastRunAt(DateTime.now());
 
       debugPrint(
         '$_tag posted ${entries.length} SMS (newer than '

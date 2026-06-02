@@ -20,6 +20,8 @@ class PermissionsState {
     this.granted = const {},
     this.busy,
     this.loading = false,
+    this.submitting = false,
+    this.errorMessage,
   });
 
   /// `true` for every permission currently granted by the OS.
@@ -32,6 +34,13 @@ class PermissionsState {
   /// `true` while the initial bulk-status check is in flight.
   final bool loading;
 
+  /// `true` while the Continue button's permissions-update API call is in
+  /// flight.
+  final bool submitting;
+
+  /// Set when the permissions-update call fails, for surfacing a snackbar.
+  final String? errorMessage;
+
   bool isGranted(PermissionKey key) => granted[key] ?? false;
   bool isBusy(PermissionKey key) => busy == key;
 
@@ -40,11 +49,16 @@ class PermissionsState {
     PermissionKey? busy,
     bool clearBusy = false,
     bool? loading,
+    bool? submitting,
+    String? errorMessage,
+    bool clearError = false,
   }) {
     return PermissionsState(
       granted: granted ?? this.granted,
       busy: clearBusy ? null : (busy ?? this.busy),
       loading: loading ?? this.loading,
+      submitting: submitting ?? this.submitting,
+      errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
     );
   }
 }

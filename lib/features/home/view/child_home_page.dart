@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -28,6 +30,7 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage> {
   static const Color _darkNavy = Color(0xFF1A237E);
 
   DateTime? _lastBackPress;
+  Timer? _statusTimer;
 
   @override
   void initState() {
@@ -38,6 +41,17 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(smsViewModelProvider.notifier).sync();
     });
+    // While the screen is visible, poll the last-run time the background
+    // isolate writes so "Last sync" ticks live without re-uploading.
+    _statusTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      ref.read(smsViewModelProvider.notifier).refreshStatus();
+    });
+  }
+
+  @override
+  void dispose() {
+    _statusTimer?.cancel();
+    super.dispose();
   }
 
   void _onPopInvoked(bool didPop, Object? result) {

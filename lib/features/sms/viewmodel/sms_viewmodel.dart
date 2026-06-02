@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../data/sms_sync_storage.dart';
 import 'sms_state.dart';
 import 'sms_sync_service.dart';
 
@@ -21,6 +22,20 @@ class SmsViewModel extends Notifier<SmsState> {
       status: response != null ? SmsSyncStatus.synced : SmsSyncStatus.error,
       lastResponse: response,
       lastSyncedAt: DateTime.now(),
+    );
+  }
+
+  /// Pulls the last-run timestamp written by the background isolate (every
+  /// 5s) into the UI state, so the home screen's "Last sync" ticks live while
+  /// the user stays on the page — without triggering another upload.
+  Future<void> refreshStatus() async {
+    final lastRun = await ref.read(smsSyncStorageProvider).getLastRunAt();
+    if (lastRun == null) return;
+    // Don't clobber an in-flight foreground sync.
+    if (state.status == SmsSyncStatus.syncing) return;
+    state = state.copyWith(
+      status: SmsSyncStatus.synced,
+      lastSyncedAt: lastRun,
     );
   }
 }

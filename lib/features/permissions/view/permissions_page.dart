@@ -19,6 +19,25 @@ class PermissionsPage extends ConsumerWidget {
   /// Minimum permissions the child must grant before they can continue.
   static const int _minGrantedToContinue = 2;
 
+  /// Sends the current permission selections to the backend, then enters the
+  /// child home screen on success. Errors surface as a snackbar.
+  Future<void> _onContinue(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await ref.read(permissionsViewModelProvider.notifier).submit();
+    if (!context.mounted) return;
+    if (ok) {
+      Nav.toChildHome(context);
+    } else {
+      final message = ref.read(permissionsViewModelProvider).errorMessage ??
+          'Could not save permissions. Please try again.';
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(content: Text(message), backgroundColor: Colors.red),
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(permissionsViewModelProvider);
@@ -45,16 +64,28 @@ class PermissionsPage extends ConsumerWidget {
                     color: Colors.transparent,
                     child: InkWell(
                       borderRadius: BorderRadius.circular(14),
-                      onTap: () => Nav.toChildHome(context),
-                      child: const Center(
-                        child: Text(
-                          'Continue',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
+                      onTap: state.submitting
+                          ? null
+                          : () => _onContinue(context, ref),
+                      child: Center(
+                        child: state.submitting
+                            ? const SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                  valueColor:
+                                      AlwaysStoppedAnimation(Colors.white),
+                                ),
+                              )
+                            : const Text(
+                                'Continue',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
                       ),
                     ),
                   ),
@@ -63,6 +94,7 @@ class PermissionsPage extends ConsumerWidget {
             )
           : null,
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: const Text(
           'Device Permissions',
           style: TextStyle(
@@ -258,7 +290,9 @@ class _PermissionTile extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: granted ? _accentGreen.withValues(alpha: 0.4) : Colors.grey.shade200,
+          color: granted
+              ? _accentGreen.withValues(alpha: 0.4)
+              : Colors.grey.shade200,
         ),
       ),
       child: Material(
