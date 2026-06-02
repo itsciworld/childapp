@@ -82,6 +82,17 @@ class Nav {
     );
   }
 
+  /// Enter the child's home screen, clearing the whole setup stack so the
+  /// hardware back button hits the home screen's press-twice-to-exit guard
+  /// instead of walking back through the onboarding flow.
+  static void toChildHome(BuildContext context) {
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      RouteNames.childHome,
+      (route) => false,
+    );
+  }
+
   /// Navigate to the combined permissions screen.
   ///
   /// Single page with one toggle per OS permission — replaces the old

@@ -9,6 +9,9 @@ class RouteNames {
   static const String terms = '/terms';
   static const String welcome = '/welcome';
 
+  /// The child's landing screen shown after setup is complete.
+  static const String childHome = '/childHome';
+
   // Setup flow
   static const String otp = '/otp';
   static const String verifyOtp = '/verifyOtp';

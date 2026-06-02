@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_exception.dart';
+import '../../../core/storage/identity_storage.dart';
 import '../data/models/verify_otp_request.dart';
 import '../data/repositories/verify_otp_repository.dart';
 import 'verify_otp_state.dart';
@@ -51,6 +52,15 @@ class VerifyOtpViewModel extends Notifier<VerifyOtpState> {
         );
         return;
       }
+
+      // Persist the identity so the background SMS sync can read it later, and
+      // the home screen can greet the child by name.
+      await ref.read(identityStorageProvider).save(
+            childId: response.childId,
+            parentId: response.parentId,
+            childName: trimmedName,
+            childAge: age,
+          );
 
       state = state.copyWith(
         status: VerifyOtpStatus.success,

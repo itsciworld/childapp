@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/appColor/app_theme/app_gradient.dart';
 import '../../../core/appimages/app_images.dart';
+import '../../../navigation_helper.dart';
 import '../viewmodel/permissions_state.dart';
 import '../viewmodel/permissions_viewmodel.dart';
 
@@ -15,15 +16,52 @@ class PermissionsPage extends ConsumerWidget {
   static const Color _darkNavy = Color(0xFF1A237E);
   static const Color _accentGreen = Color(0xFF15BEB5);
 
+  /// Minimum permissions the child must grant before they can continue.
+  static const int _minGrantedToContinue = 2;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(permissionsViewModelProvider);
     final notifier = ref.read(permissionsViewModelProvider.notifier);
     final grantedCount = state.granted.values.where((g) => g).length;
     final total = PermissionKey.values.length;
+    final canContinue = grantedCount >= _minGrantedToContinue;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F8FA),
+      // Only surfaces once the child has granted at least
+      // [_minGrantedToContinue] permissions.
+      bottomNavigationBar: canContinue
+          ? SafeArea(
+              minimum: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              child: SizedBox(
+                height: 52,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: AppGradients.primaryButton,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: () => Nav.toChildHome(context),
+                      child: const Center(
+                        child: Text(
+                          'Continue',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            )
+          : null,
       appBar: AppBar(
         title: const Text(
           'Device Permissions',

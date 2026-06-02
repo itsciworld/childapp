@@ -21,7 +21,10 @@ final dioProvider = Provider<Dio>((ref) {
   if (kDebugMode) {
     dio.interceptors.add(
       LogInterceptor(
-        requestBody: true,
+        // Keep request bodies OUT of the console: the SMS upload payload is
+        // huge and would dump every message body on each (retried) sync pass.
+        // The SmsSyncService already logs just the count.
+        requestBody: false,
         responseBody: true,
         logPrint: (obj) => debugPrint('[DIO] $obj'),
       ),

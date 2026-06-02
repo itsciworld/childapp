@@ -1,0 +1,83 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+/// The paired-device identity needed when uploading monitored data and for
+/// greeting the child on the home screen.
+class Identity {
+  const Identity({
+    this.childId,
+    this.parentId,
+    this.childName,
+    this.childAge,
+  });
+
+  final String? childId;
+  final String? parentId;
+  final String? childName;
+  final int? childAge;
+
+  bool get isComplete =>
+      (childId?.isNotEmpty ?? false) && (parentId?.isNotEmpty ?? false);
+}
+
+/// Persists the child / parent ids (and the child's display details) so any
+/// isolate (including the background monitoring service) can read them from
+/// [SharedPreferences].
+class IdentityStorage {
+  // Re-uses the existing `childId` key already written by the welcome flow.
+  static const String _childIdKey = 'childId';
+  static const String _parentIdKey = 'parentId';
+  static const String _childNameKey = 'childName';
+  static const String _childAgeKey = 'childAge';
+
+  Future<void> save({
+    String? childId,
+    String? parentId,
+    String? childName,
+    int? childAge,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (childId != null && childId.isNotEmpty) {
+      await prefs.setString(_childIdKey, childId);
+    }
+    if (parentId != null && parentId.isNotEmpty) {
+      await prefs.setString(_parentIdKey, parentId);
+    }
+    if (childName != null && childName.isNotEmpty) {
+      await prefs.setString(_childNameKey, childName);
+    }
+    if (childAge != null && childAge > 0) {
+      await prefs.setInt(_childAgeKey, childAge);
+    }
+  }
+
+  Future<Identity> read() async {
+    final prefs = await SharedPreferences.getInstance();
+    // The background isolate caches prefs from app boot (before pairing). Reload
+    // so it sees childId/parentId written later by the main isolate.
+    await prefs.reload();
+    return Identity(
+      childId: prefs.getString(_childIdKey),
+      parentId: prefs.getString(_parentIdKey),
+      childName: prefs.getString(_childNameKey),
+      childAge: prefs.getInt(_childAgeKey),
+    );
+  }
+
+  Future<void> clear() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_childIdKey);
+    await prefs.remove(_parentIdKey);
+    await prefs.remove(_childNameKey);
+    await prefs.remove(_childAgeKey);
+  }
+}
+
+final identityStorageProvider =
+    Provider<IdentityStorage>((ref) => IdentityStorage());
+
+/// One-shot read of the stored [Identity] — handy for screens that just need
+/// to display the child's details.
+final identityProvider = FutureProvider<Identity>((ref) {
+  return ref.watch(identityStorageProvider).read();
+});
