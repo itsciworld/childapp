@@ -8,6 +8,7 @@ import '../../../core/appColor/app_theme/app_gradient.dart';
 import '../../../core/storage/device_storage.dart';
 import '../../../core/storage/identity_storage.dart';
 import '../../../navigation_helper.dart';
+import '../../device/viewmodel/device_viewmodel.dart';
 import '../../sms/viewmodel/sms_state.dart';
 import '../../sms/viewmodel/sms_viewmodel.dart';
 
@@ -40,6 +41,7 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage> {
     // every-5-seconds background upload.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(smsViewModelProvider.notifier).sync();
+      _uploadDeviceInfo();
     });
     // While the screen is visible, poll the last-run time the background
     // isolate writes so "Last sync" ticks live without re-uploading.
@@ -52,6 +54,18 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage> {
   void dispose() {
     _statusTimer?.cancel();
     super.dispose();
+  }
+
+  /// Posts this device's info to the backend once on open and shows the
+  /// server's message as a toast.
+  Future<void> _uploadDeviceInfo() async {
+    final message = await ref.read(deviceViewModelProvider.notifier).upload();
+    if (!mounted || message == null || message.isEmpty) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
+      );
   }
 
   void _onPopInvoked(bool didPop, Object? result) {
