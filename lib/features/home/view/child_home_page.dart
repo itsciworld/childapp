@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -39,8 +40,11 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
   DateTime? _lastBackPress;
   Timer? _statusTimer;
 
-  // Drives the one-shot staggered entrance of the cards.
+  // Drives the one-shot staggered entrance of the cards. Started the moment
+  // the profile data finishes loading (not at mount), so the reveal plays in
+  // sync with the data actually appearing on screen.
   late final AnimationController _entrance;
+  bool _entranceStarted = false;
   // Drives the continuous "live monitoring" pulse on the hero shield + dots.
   late final AnimationController _pulse;
 
@@ -50,8 +54,8 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
 
     _entrance = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 900),
-    )..forward();
+      duration: const Duration(milliseconds: 1100),
+    );
     _pulse = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
@@ -168,38 +172,42 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
         body: identityAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(child: Text('Could not load profile: $e')),
-          data: (identity) => ListView(
-            padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
-            children: [
-              _Entrance(
-                animation: _entrance,
-                index: 0,
-                child: _HeroCard(name: identity.childName, pulse: _pulse),
-              ),
-              const SizedBox(height: 16),
-              _Entrance(
-                animation: _entrance,
-                index: 1,
-                child: _ProfileCard(identity: identity),
-              ),
-              const SizedBox(height: 16),
-              _Entrance(
-                animation: _entrance,
-                index: 2,
-                child: _MonitoringCard(
-                  state: smsState,
-                  callLogState: callLogState,
-                  contactState: contactState,
+          data: (identity) {
+            // Kick off the entrance the first time real data is available, so
+            // the cards animate in exactly when the data does — covering both
+            // the async-resolve and the already-cached cases.
+            if (!_entranceStarted) {
+              _entranceStarted = true;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) _entrance.forward(from: 0);
+              });
+            }
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
+              children: [
+                _Entrance(
+                  animation: _entrance,
+                  index: 0,
+                  child: _WelcomeCard(
+                    identity: identity,
+                    device: deviceAsync.asData?.value,
+                    pulse: _pulse,
+                    entrance: _entrance,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              _Entrance(
-                animation: _entrance,
-                index: 3,
-                child: _DeviceCard(device: deviceAsync.asData?.value),
-              ),
-            ],
-          ),
+                const SizedBox(height: 16),
+                _Entrance(
+                  animation: _entrance,
+                  index: 1,
+                  child: _MonitoringCard(
+                    state: smsState,
+                    callLogState: callLogState,
+                    contactState: contactState,
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -228,10 +236,53 @@ class _Entrance extends StatelessWidget {
     );
     return AnimatedBuilder(
       animation: curved,
+      builder: (context, child) {
+        final t = curved.value;
+        return Opacity(
+          opacity: t,
+          child: Transform.translate(
+            offset: Offset(0, 32 * (1 - t)),
+            child: Transform.scale(
+              scale: 0.96 + 0.04 * t,
+              alignment: Alignment.topCenter,
+              child: child,
+            ),
+          ),
+        );
+      },
+      child: child,
+    );
+  }
+}
+
+/// Reveals [child] with a fade + small rise as [animation] sweeps its
+/// [start]–[end] sub-interval. Lets the welcome-card values cascade in just
+/// after the card frame itself has appeared.
+class _RevealItem extends StatelessWidget {
+  const _RevealItem({
+    required this.animation,
+    required this.start,
+    required this.end,
+    required this.child,
+  });
+
+  final Animation<double> animation;
+  final double start;
+  final double end;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final curved = CurvedAnimation(
+      parent: animation,
+      curve: Interval(start, end, curve: Curves.easeOut),
+    );
+    return AnimatedBuilder(
+      animation: curved,
       builder: (context, child) => Opacity(
         opacity: curved.value,
         child: Transform.translate(
-          offset: Offset(0, 28 * (1 - curved.value)),
+          offset: Offset(0, 12 * (1 - curved.value)),
           child: child,
         ),
       ),
@@ -240,34 +291,52 @@ class _Entrance extends StatelessWidget {
   }
 }
 
-/// The gradient "protection active" hero with an animated pulsing shield.
-class _HeroCard extends StatelessWidget {
-  const _HeroCard({this.name, required this.pulse});
+/// The gradient hero card holding every child detail in one place:
+/// greeting + name, an animated pulsing shield, and an age · device · OS
+/// stat row whose values cascade in (driven by [entrance]) as the data loads.
+class _WelcomeCard extends StatelessWidget {
+  const _WelcomeCard({
+    required this.identity,
+    required this.device,
+    required this.pulse,
+    required this.entrance,
+  });
 
-  final String? name;
+  final Identity identity;
+  final StoredDevice? device;
   final Animation<double> pulse;
+  final Animation<double> entrance;
 
   @override
   Widget build(BuildContext context) {
-    final displayName = (name == null || name!.isEmpty) ? 'there' : name!;
+    final rawName = identity.childName;
+    final displayName =
+        (rawName == null || rawName.isEmpty) ? 'there' : rawName;
+    final age = identity.childAge;
+    final deviceName =
+        (device?.name?.isNotEmpty ?? false) ? device!.name! : 'This device';
+    final osLabel = _platformLabel();
+    final osIcon = Platform.isIOS ? Icons.apple : Icons.android;
+
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         gradient: AppGradients.primaryButton,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
         boxShadow: [
           BoxShadow(
             color: AppGradients.shadowColor(AppGradients.primaryButton),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
+            blurRadius: 26,
+            offset: const Offset(0, 14),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Greeting + name (left); pulsing shield with a live badge (right).
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: Column(
@@ -289,7 +358,7 @@ class _HeroCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 26,
+                        fontSize: 27,
                         fontWeight: FontWeight.w800,
                         height: 1.1,
                       ),
@@ -297,44 +366,160 @@ class _HeroCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
-              _PulsingShield(pulse: pulse),
+              const SizedBox(width: 14),
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  _PulsingShield(pulse: pulse),
+                ],
+              ),
             ],
           ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(30),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _LiveDot(pulse: pulse, color: const Color(0xFF6EE7B7)),
-                    const SizedBox(width: 8),
-                    const Text(
-                      'Protection active',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.2,
-                      ),
+          const SizedBox(height: 20),
+          Divider(
+            height: 1,
+            thickness: 1,
+            color: Colors.white.withValues(alpha: 0.15),
+          ),
+          const SizedBox(height: 16),
+          // Detail columns: age · device · system. Device gets the widest
+          // share and may wrap onto two lines so longer hardware names stay
+          // readable.
+          IntrinsicHeight(
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: _RevealItem(
+                    animation: entrance,
+                    start: 0.45,
+                    end: 0.72,
+                    child: _HeroStat(
+                      icon: Icons.cake_outlined,
+                      label: 'AGE',
+                      value: (age != null && age > 0) ? '$age yrs' : '—',
                     ),
-                  ],
+                  ),
                 ),
-              ),
-              const Spacer(),
-              const Icon(Icons.lock_outline,
-                  color: Colors.white60, size: 18),
-            ],
+                const _StatDivider(),
+                Expanded(
+                  flex: 6,
+                  child: _RevealItem(
+                    animation: entrance,
+                    start: 0.55,
+                    end: 0.82,
+                    child: _HeroStat(
+                      icon: Icons.smartphone_outlined,
+                      label: 'DEVICE',
+                      value: deviceName,
+                      maxLines: 2,
+                    ),
+                  ),
+                ),
+                const _StatDivider(),
+                Expanded(
+                  flex: 4,
+                  child: _RevealItem(
+                    animation: entrance,
+                    start: 0.65,
+                    end: 0.92,
+                    child: _HeroStat(
+                      icon: osIcon,
+                      label: 'OS',
+                      value: osLabel,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
+    );
+  }
+
+  /// The running platform name only — "Android" / "iOS" (no version).
+  static String _platformLabel() {
+    if (Platform.isAndroid) return 'Android';
+    if (Platform.isIOS) return 'iOS';
+    final os = Platform.operatingSystem;
+    return os.isEmpty ? 'Device' : '${os[0].toUpperCase()}${os.substring(1)}';
+  }
+}
+
+/// One labelled detail column for the hero stats row.
+class _HeroStat extends StatelessWidget {
+  const _HeroStat({
+    required this.label,
+    required this.value,
+    this.icon,
+    this.maxLines = 1,
+  });
+
+  final String label;
+  final String value;
+  final IconData? icon;
+  final int maxLines;
+
+  @override
+  Widget build(BuildContext context) {
+    const valueStyle = TextStyle(
+      color: Colors.white,
+      fontSize: 14.5,
+      fontWeight: FontWeight.w700,
+      height: 1.15,
+    );
+
+    final Widget valueWidget = Text(
+      value,
+      maxLines: maxLines,
+      overflow: TextOverflow.ellipsis,
+      style: valueStyle,
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        // Label row: small icon + caption, leaving the value its full width.
+        Row(
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 13, color: Colors.white.withValues(alpha: 0.65)),
+              const SizedBox(width: 4),
+            ],
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.65),
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.0,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        valueWidget,
+      ],
+    );
+  }
+}
+
+/// A thin vertical separator between hero stat columns.
+class _StatDivider extends StatelessWidget {
+  const _StatDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      margin: const EdgeInsets.symmetric(horizontal: 12),
+      color: Colors.white.withValues(alpha: 0.15),
     );
   }
 }
@@ -385,136 +570,36 @@ class _PulsingShield extends StatelessWidget {
 }
 
 /// A small blinking status dot.
-class _LiveDot extends StatelessWidget {
-  const _LiveDot({required this.pulse, required this.color});
+// class _LiveDot extends StatelessWidget {
+//   const _LiveDot({required this.pulse, required this.color});
 
-  final Animation<double> pulse;
-  final Color color;
+//   final Animation<double> pulse;
+//   final Color color;
 
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: pulse,
-      builder: (context, _) {
-        return Container(
-          width: 9,
-          height: 9,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: color,
-            boxShadow: [
-              BoxShadow(
-                color: color.withValues(alpha: 0.5 + 0.5 * pulse.value),
-                blurRadius: 6 * pulse.value,
-                spreadRadius: 1.5 * pulse.value,
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-/// Profile card — name + age only (IDs are intentionally hidden).
-class _ProfileCard extends StatelessWidget {
-  const _ProfileCard({required this.identity});
-
-  final Identity identity;
-
-  @override
-  Widget build(BuildContext context) {
-    final name = (identity.childName?.isNotEmpty ?? false)
-        ? identity.childName!
-        : 'Your profile';
-    final initial = name.trim().isNotEmpty ? name.trim()[0].toUpperCase() : '?';
-    final age = identity.childAge;
-    final subtitle = (age != null && age > 0)
-        ? 'Child account  •  $age yrs'
-        : 'Child account';
-
-    return _CardShell(
-      child: Row(
-        children: [
-          Container(
-            width: 60,
-            height: 60,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              gradient: AppGradients.secondary,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: AppGradients.shadowColor(AppGradients.secondary),
-                  blurRadius: 14,
-                  offset: const Offset(0, 7),
-                ),
-              ],
-            ),
-            child: Text(
-              initial,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 26,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF111827),
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Row(
-                  children: [
-                    const Icon(Icons.verified,
-                        size: 15, color: Color(0xFF2BA0CC)),
-                    const SizedBox(width: 5),
-                    Flexible(
-                      child: Text(
-                        subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF6B7280),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            width: 38,
-            height: 38,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: const Color(0xFF16A34A).withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.shield_outlined,
-                size: 19, color: Color(0xFF16A34A)),
-          ),
-        ],
-      ),
-    );
-  }
-}
+//   @override
+//   Widget build(BuildContext context) {
+//     return AnimatedBuilder(
+//       animation: pulse,
+//       builder: (context, _) {
+//         return Container(
+//           width: 9,
+//           height: 9,
+//           decoration: BoxDecoration(
+//             shape: BoxShape.circle,
+//             color: color,
+//             boxShadow: [
+//               BoxShadow(
+//                 color: color.withValues(alpha: 0.5 + 0.5 * pulse.value),
+//                 blurRadius: 6 * pulse.value,
+//                 spreadRadius: 1.5 * pulse.value,
+//               ),
+//             ],
+//           ),
+//         );
+//       },
+//     );
+//   }
+// }
 
 /// Normalised view of one sync stream's status for the monitoring tiles.
 class _SyncView {
@@ -713,75 +798,6 @@ class _StatusChip extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _DeviceCard extends StatelessWidget {
-  const _DeviceCard({this.device});
-
-  final StoredDevice? device;
-
-  @override
-  Widget build(BuildContext context) {
-    final name = (device?.name?.isNotEmpty ?? false) ? device!.name! : '—';
-    final id = (device?.id?.isNotEmpty ?? false) ? device!.id! : '—';
-    return _CardShell(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _SectionTitle(
-              icon: Icons.smartphone_outlined, title: 'Device'),
-          const SizedBox(height: 14),
-          _DeviceRow(icon: Icons.devices_outlined, label: 'Name', value: name),
-          const SizedBox(height: 12),
-          _DeviceRow(
-              icon: Icons.fingerprint_outlined, label: 'Device ID', value: id),
-        ],
-      ),
-    );
-  }
-}
-
-class _DeviceRow extends StatelessWidget {
-  const _DeviceRow({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, size: 19, color: const Color(0xFF9CA3AF)),
-        const SizedBox(width: 12),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 13.5,
-            fontWeight: FontWeight.w600,
-            color: Color(0xFF6B7280),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            value,
-            textAlign: TextAlign.right,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 13.5,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF1F2937),
-            ),
-          ),
-        ),
-      ],
     );
   }
 }
