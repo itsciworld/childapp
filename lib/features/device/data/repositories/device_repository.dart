@@ -25,8 +25,8 @@ class DeviceRepository {
   final IdentityStorage _identityStorage;
   final DeviceInfoService _deviceInfoService;
 
-  /// Reads this device's hardware / OS / app details and posts them to
-  /// `POST /api/children/{childId}/device-info`.
+  /// Reads this device's hardware / OS / app details and sends them to
+  /// `PUT /api/children/{childId}/device-info`.
   ///
   /// The stored `childId` is used in the path and the stored auth token is sent
   /// in the `Authorization: Bearer` header.
@@ -42,12 +42,15 @@ class DeviceRepository {
 
     final info = await _deviceInfoService.readDeviceInfo();
     final body = DeviceInfoRequest.fromDeviceInfo(info).toJson();
-    debugPrint('[DeviceRepository] POST /api/children/$childId/device-info '
+    debugPrint('[DeviceRepository] PUT /api/children/$childId/device-info '
         'body=$body');
 
     try {
       final token = await _tokenStorage.getToken();
-      final response = await _dio.post<dynamic>(
+      // This route lives under the same `/api/children/{childId}/...` sub-resource
+      // as permissions, which is served by PUT — POST returns 404 (route not
+      // registered).
+      final response = await _dio.put<dynamic>(
         '/api/children/$childId/device-info',
         data: body,
         options: Options(

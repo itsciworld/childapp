@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/appColor/app_theme/app_gradient.dart';
@@ -10,6 +11,8 @@ import '../../../core/storage/identity_storage.dart';
 import '../../../navigation_helper.dart';
 import '../../call_logs/viewmodel/call_log_state.dart';
 import '../../call_logs/viewmodel/call_log_viewmodel.dart';
+import '../../contacts/viewmodel/contact_state.dart';
+import '../../contacts/viewmodel/contact_viewmodel.dart';
 import '../../device/viewmodel/device_viewmodel.dart';
 import '../../sms/viewmodel/sms_state.dart';
 import '../../sms/viewmodel/sms_viewmodel.dart';
@@ -20,8 +23,8 @@ import '../../sms/viewmodel/sms_viewmodel.dart';
 /// - Greets the child and shows their basic details.
 /// - Settings icon (top-right) → device permissions screen.
 /// - Press-back-twice-to-exit guard.
-/// - Triggers an immediate (foreground) SMS sync on open; the recurring
-///   background upload keeps running via the background service.
+/// - Asks the background service for an immediate sync pass on open; the
+///   recurring upload keeps running every 5s via the background service.
 class ChildHomePage extends ConsumerStatefulWidget {
   const ChildHomePage({super.key});
 
@@ -38,12 +41,14 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage> {
   @override
   void initState() {
     super.initState();
-    // Fire an immediate sync as soon as the home screen is shown — this fetches
-    // SMS and posts them right away (and logs the result), on top of the
-    // every-5-seconds background upload.
+    // Ask the background isolate to run an immediate sync pass as soon as the
+    // home screen is shown, on top of its every-5-seconds loop. We trigger it
+    // via the service channel instead of reading the SMS / call-log / contacts
+    // plugins here, because those native plugins (notably `call_log`) crash if
+    // queried from two isolates at once — the background isolate is the single
+    // owner of all device-plugin reads.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(smsViewModelProvider.notifier).sync();
-      ref.read(callLogViewModelProvider.notifier).sync();
+      FlutterBackgroundService().invoke('syncNow');
       _uploadDeviceInfo();
     });
     // While the screen is visible, poll the last-run time the background
@@ -51,6 +56,7 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage> {
     _statusTimer = Timer.periodic(const Duration(seconds: 3), (_) {
       ref.read(smsViewModelProvider.notifier).refreshStatus();
       ref.read(callLogViewModelProvider.notifier).refreshStatus();
+      ref.read(contactViewModelProvider.notifier).refreshStatus();
     });
   }
 
@@ -101,6 +107,7 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage> {
     final deviceAsync = ref.watch(storedDeviceProvider);
     final smsState = ref.watch(smsViewModelProvider);
     final callLogState = ref.watch(callLogViewModelProvider);
+    final contactState = ref.watch(contactViewModelProvider);
 
     return PopScope(
       canPop: false,
@@ -136,7 +143,11 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage> {
               const SizedBox(height: 16),
               _DeviceCard(device: deviceAsync.asData?.value),
               const SizedBox(height: 16),
-              _MonitoringCard(state: smsState, callLogState: callLogState),
+              _MonitoringCard(
+                state: smsState,
+                callLogState: callLogState,
+                contactState: contactState,
+              ),
             ],
           ),
         ),
@@ -274,10 +285,15 @@ class _DeviceCard extends StatelessWidget {
 }
 
 class _MonitoringCard extends StatelessWidget {
-  const _MonitoringCard({required this.state, required this.callLogState});
+  const _MonitoringCard({
+    required this.state,
+    required this.callLogState,
+    required this.contactState,
+  });
 
   final SmsState state;
   final CallLogState callLogState;
+  final ContactState contactState;
 
   @override
   Widget build(BuildContext context) {
@@ -297,6 +313,15 @@ class _MonitoringCard extends StatelessWidget {
       CallLogSyncStatus.synced => 'Active',
       CallLogSyncStatus.error => 'Active (retrying)',
       CallLogSyncStatus.idle => 'Starting…',
+    };
+
+    final contactLast = contactState.lastResponse;
+    final contactSyncedAt = contactState.lastSyncedAt;
+    final contactStatusText = switch (contactState.status) {
+      ContactSyncStatus.syncing => 'Syncing…',
+      ContactSyncStatus.synced => 'Active',
+      ContactSyncStatus.error => 'Active (retrying)',
+      ContactSyncStatus.idle => 'Starting…',
     };
 
     return _CardShell(
@@ -338,6 +363,25 @@ class _MonitoringCard extends StatelessWidget {
               value: 'saved ${callLast.saved ?? 0}, '
                   'dup ${callLast.duplicates ?? 0}, '
                   'total ${callLast.total ?? 0}',
+            ),
+          const Divider(height: 20),
+          _InfoRow(
+            icon: Icons.contacts_outlined,
+            label: 'Contacts sync',
+            value: contactStatusText,
+          ),
+          _InfoRow(
+            icon: Icons.schedule_outlined,
+            label: 'Last sync',
+            value: contactSyncedAt == null ? '—' : _formatTime(contactSyncedAt),
+          ),
+          if (contactLast != null)
+            _InfoRow(
+              icon: Icons.upload_outlined,
+              label: 'Last upload',
+              value: 'saved ${contactLast.saved ?? 0}, '
+                  'dup ${contactLast.duplicates ?? 0}, '
+                  'total ${contactLast.total ?? 0}',
             ),
         ],
       ),

@@ -1,5 +1,7 @@
 import 'package:call_log/call_log.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/network/api_exception.dart';
@@ -35,7 +37,7 @@ class CallLogRepository {
     DateTime? since,
     int firstSyncLimit = 100,
   }) async {
-    final entries = (await CallLog.query()).toList();
+    final entries = (await _query()).toList();
 
     // Oldest-first so the caller can use the last entry as the new watermark.
     entries.sort((a, b) => (a.timestamp ?? 0).compareTo(b.timestamp ?? 0));
@@ -68,6 +70,25 @@ class CallLogRepository {
       );
     }
     return logs;
+  }
+
+  /// Queries the call log with a small retry on the plugin's `ALREADY_RUNNING`
+  /// error. The `call_log` plugin allows only one query in flight at a time and
+  /// throws `ALREADY_RUNNING` if a second overlaps; rather than dropping the
+  /// whole pass we briefly back off and retry so it self-heals.
+  Future<Iterable<CallLogEntry>> _query({int attempts = 3}) async {
+    for (var attempt = 1; ; attempt++) {
+      try {
+        return await CallLog.query();
+      } on PlatformException catch (e) {
+        if (e.code == 'ALREADY_RUNNING' && attempt < attempts) {
+          debugPrint('[CallLogRepository] query busy, retry $attempt');
+          await Future<void>.delayed(const Duration(milliseconds: 400));
+          continue;
+        }
+        rethrow;
+      }
+    }
   }
 
   /// Uploads [logs] to `POST /api/logs/store_calllogs`.
