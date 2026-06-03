@@ -5,6 +5,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/config/env_config.dart';
+import '../../features/call_logs/viewmodel/call_log_sync_service.dart';
 import '../../features/sms/viewmodel/sms_sync_service.dart';
 
 class BackgroundService {
@@ -62,6 +63,7 @@ void onStart(ServiceInstance service) async {
   await EnvConfig.load();
   final container = ProviderContainer();
   final smsSync = container.read(smsSyncServiceProvider);
+  final callLogSync = container.read(callLogSyncServiceProvider);
 
   service.on('stopService').listen((event) {
     container.dispose();
@@ -76,6 +78,7 @@ void onStart(ServiceInstance service) async {
     isSyncing = true;
     try {
       await smsSync.sync();
+      await callLogSync.sync();
 
       if (service is AndroidServiceInstance &&
           await service.isForegroundService()) {

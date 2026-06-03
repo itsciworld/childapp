@@ -8,6 +8,8 @@ import '../../../core/appColor/app_theme/app_gradient.dart';
 import '../../../core/storage/device_storage.dart';
 import '../../../core/storage/identity_storage.dart';
 import '../../../navigation_helper.dart';
+import '../../call_logs/viewmodel/call_log_state.dart';
+import '../../call_logs/viewmodel/call_log_viewmodel.dart';
 import '../../device/viewmodel/device_viewmodel.dart';
 import '../../sms/viewmodel/sms_state.dart';
 import '../../sms/viewmodel/sms_viewmodel.dart';
@@ -41,12 +43,14 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage> {
     // every-5-seconds background upload.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(smsViewModelProvider.notifier).sync();
+      ref.read(callLogViewModelProvider.notifier).sync();
       _uploadDeviceInfo();
     });
     // While the screen is visible, poll the last-run time the background
     // isolate writes so "Last sync" ticks live without re-uploading.
     _statusTimer = Timer.periodic(const Duration(seconds: 3), (_) {
       ref.read(smsViewModelProvider.notifier).refreshStatus();
+      ref.read(callLogViewModelProvider.notifier).refreshStatus();
     });
   }
 
@@ -96,6 +100,7 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage> {
     final identityAsync = ref.watch(identityProvider);
     final deviceAsync = ref.watch(storedDeviceProvider);
     final smsState = ref.watch(smsViewModelProvider);
+    final callLogState = ref.watch(callLogViewModelProvider);
 
     return PopScope(
       canPop: false,
@@ -131,7 +136,7 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage> {
               const SizedBox(height: 16),
               _DeviceCard(device: deviceAsync.asData?.value),
               const SizedBox(height: 16),
-              _MonitoringCard(state: smsState),
+              _MonitoringCard(state: smsState, callLogState: callLogState),
             ],
           ),
         ),
@@ -269,19 +274,29 @@ class _DeviceCard extends StatelessWidget {
 }
 
 class _MonitoringCard extends StatelessWidget {
-  const _MonitoringCard({required this.state});
+  const _MonitoringCard({required this.state, required this.callLogState});
 
   final SmsState state;
+  final CallLogState callLogState;
 
   @override
   Widget build(BuildContext context) {
     final last = state.lastResponse;
     final syncedAt = state.lastSyncedAt;
-    final statusText = switch (state.status) {
+    final smsStatusText = switch (state.status) {
       SmsSyncStatus.syncing => 'Syncing…',
       SmsSyncStatus.synced => 'Active',
       SmsSyncStatus.error => 'Active (retrying)',
       SmsSyncStatus.idle => 'Starting…',
+    };
+
+    final callLast = callLogState.lastResponse;
+    final callSyncedAt = callLogState.lastSyncedAt;
+    final callStatusText = switch (callLogState.status) {
+      CallLogSyncStatus.syncing => 'Syncing…',
+      CallLogSyncStatus.synced => 'Active',
+      CallLogSyncStatus.error => 'Active (retrying)',
+      CallLogSyncStatus.idle => 'Starting…',
     };
 
     return _CardShell(
@@ -291,7 +306,7 @@ class _MonitoringCard extends StatelessWidget {
           _InfoRow(
             icon: Icons.sync_outlined,
             label: 'SMS sync',
-            value: statusText,
+            value: smsStatusText,
           ),
           _InfoRow(
             icon: Icons.schedule_outlined,
@@ -304,6 +319,25 @@ class _MonitoringCard extends StatelessWidget {
               label: 'Last upload',
               value: 'saved ${last.saved ?? 0}, '
                   'dup ${last.duplicates ?? 0}, total ${last.total ?? 0}',
+            ),
+          const Divider(height: 20),
+          _InfoRow(
+            icon: Icons.call_outlined,
+            label: 'Call log sync',
+            value: callStatusText,
+          ),
+          _InfoRow(
+            icon: Icons.schedule_outlined,
+            label: 'Last sync',
+            value: callSyncedAt == null ? '—' : _formatTime(callSyncedAt),
+          ),
+          if (callLast != null)
+            _InfoRow(
+              icon: Icons.upload_outlined,
+              label: 'Last upload',
+              value: 'saved ${callLast.saved ?? 0}, '
+                  'dup ${callLast.duplicates ?? 0}, '
+                  'total ${callLast.total ?? 0}',
             ),
         ],
       ),
