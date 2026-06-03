@@ -5,6 +5,7 @@ import '../../../core/device/device_info_service.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/storage/device_storage.dart';
 import '../../../core/storage/identity_storage.dart';
+import '../../device/data/repositories/device_repository.dart';
 import '../data/models/verify_otp_request.dart';
 import '../data/repositories/verify_otp_repository.dart';
 import 'verify_otp_state.dart';
@@ -73,9 +74,18 @@ class VerifyOtpViewModel extends Notifier<VerifyOtpState> {
             key: response.deviceKey,
           );
 
+      // Upload the full device info to the backend ONCE, now that pairing
+      // succeeded (childId + auth token are stored). This is the only place it's
+      // sent — it must not run on every app restart. A failure here must not
+      // fail an otherwise-successful pairing, so [_uploadDeviceInfo] swallows
+      // errors and returns null; the message (when present) drives the success
+      // snackbar on the verify screen.
+      final deviceMessage = await _uploadDeviceInfo();
+
       state = state.copyWith(
         status: VerifyOtpStatus.success,
         response: response,
+        deviceMessage: deviceMessage,
         clearError: true,
       );
     } on ApiException catch (e) {
@@ -89,6 +99,20 @@ class VerifyOtpViewModel extends Notifier<VerifyOtpState> {
         status: VerifyOtpStatus.error,
         errorMessage: 'Something went wrong. Please try again.',
       );
+    }
+  }
+
+  /// Uploads this device's info to the backend a single time, at pairing, and
+  /// returns the server `msg` on success (for the success snackbar). Errors are
+  /// swallowed (logged only, returns null) so they never block pairing success.
+  Future<String?> _uploadDeviceInfo() async {
+    try {
+      final res = await ref.read(deviceRepositoryProvider).uploadDeviceInfo();
+      debugPrint('[VerifyOtpViewModel] device-info uploaded: ${res.message}');
+      return res.message;
+    } catch (e) {
+      debugPrint('[VerifyOtpViewModel] device-info upload failed: $e');
+      return null;
     }
   }
 

@@ -89,6 +89,29 @@ class _VerifyOtpPageState extends ConsumerState<VerifyOtpPage> {
     ref.listen<VerifyOtpState>(verifyOtpViewModelProvider, (previous, next) {
       if (next.status == VerifyOtpStatus.success && next.response != null) {
         final response = next.response!;
+        // Show the device-info success snackbar (only when the API actually
+        // succeeded and returned a message). The app-level ScaffoldMessenger
+        // keeps it visible across the navigation that follows.
+        final deviceMessage = next.deviceMessage;
+        if (deviceMessage != null && deviceMessage.isNotEmpty) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              SnackBar(
+                behavior: SnackBarBehavior.floating,
+                backgroundColor: const Color(0xFF16A34A),
+                content: Row(
+                  children: [
+                    const Icon(Icons.check_circle,
+                        color: Colors.white, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(child: Text(deviceMessage)),
+                  ],
+                ),
+                duration: const Duration(seconds: 2),
+              ),
+            );
+        }
         Nav.toAllowPermission(
           context,
           response.childId!,
