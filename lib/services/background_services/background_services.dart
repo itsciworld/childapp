@@ -1,13 +1,29 @@
 import 'dart:async';
+import 'dart:math';
 import 'dart:ui';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/config/env_config.dart';
 import '../../features/call_logs/viewmodel/call_log_sync_service.dart';
 import '../../features/contacts/viewmodel/contact_sync_service.dart';
 import '../../features/sms/viewmodel/sms_sync_service.dart';
+
+/// How often each monitored stream uploads. Each stream runs on its OWN timer,
+/// so you can change any one of these independently without affecting the
+/// others — e.g. sync contacts far less often than messages.
+class SyncIntervals {
+  SyncIntervals._();
+
+  static const Duration sms = Duration(seconds: 5);
+  static const Duration callLogs = Duration(seconds: 5);
+  static const Duration contacts = Duration(seconds: 5);
+
+  /// How often the foreground notification's "last synced" line refreshes.
+  static const Duration notification = Duration(seconds: 30);
+}
 
 class BackgroundService {
   static const notificationId = 888;
@@ -50,19 +66,25 @@ class BackgroundService {
       ),
     );
 
-    service.startService();
+    // Only start if it isn't already running. `autoStart: true` already brings
+    // the service up after configure / on boot, so calling startService()
+    // unconditionally spawned a SECOND background isolate — and two isolates
+    // each ran their own 5s loop, querying the `call_log` plugin concurrently
+    // (it allows only one query at a time → ALREADY_RUNNING / "Reply already
+    // submitted"). Guarding on isRunning() keeps it to a single isolate.
+    if (!await service.isRunning()) {
+      await service.startService();
+    }
   }
 }
 
-// Top-level (isolate-static) guards. `onStart` can be invoked more than once in
-// the service's lifetime (foreground/background transitions, service restarts).
-// Each invocation previously created its OWN Timer.periodic, so two loops ran in
-// parallel and queried the fragile `call_log` plugin at the same time —
-// crashing it with ALREADY_RUNNING / "Reply already submitted". These flags live
-// at the isolate's top level so a second `onStart` can't spin up a second loop,
-// and so only one sync pass is ever in flight.
+// Guards against a duplicate `onStart` wiring up a second set of timers in the
+// SAME isolate.
 bool _loopStarted = false;
-bool _isSyncing = false;
+
+// A unique id for THIS isolate, used for cross-isolate leader election (below).
+final String _isolateId =
+    '${DateTime.now().microsecondsSinceEpoch}-${Random().nextInt(1 << 32)}';
 
 // This function runs in a separate isolate (background)
 @pragma('vm:entry-point')
@@ -74,7 +96,7 @@ void onStart(ServiceInstance service) async {
     service.stopSelf();
   });
 
-  // Guard against a duplicate onStart spinning up a second 5s loop.
+  // Guard against a duplicate onStart wiring up a second set of timers.
   if (_loopStarted) return;
   _loopStarted = true;
 
@@ -86,38 +108,113 @@ void onStart(ServiceInstance service) async {
   final callLogSync = container.read(callLogSyncServiceProvider);
   final contactSync = container.read(contactSyncServiceProvider);
 
-  // This isolate is the SINGLE owner of all device-plugin reads. The UI never
-  // reads them directly — it sends a 'syncNow' event (see ChildHomePage) which
-  // we handle here, so plugin access stays in one isolate and serialized.
-  Future<void> runSyncPass() async {
-    if (_isSyncing) return;
-    _isSyncing = true;
-    try {
-      await smsSync.sync();
-      await callLogSync.sync();
-      await contactSync.sync();
-
-      if (service is AndroidServiceInstance &&
-          await service.isForegroundService()) {
-        service.setForegroundNotificationInfo(
-          title: "Vigil Protection Active",
-          content:
-              "Last synced: ${DateTime.now().hour}:${DateTime.now().minute}",
-        );
-      }
-    } finally {
-      _isSyncing = false;
-    }
+  // Each stream gets its OWN timer + interval + in-flight guard, so they're
+  // fully independent: change any interval in [SyncIntervals] without touching
+  // the others, and a stream never overlaps itself. Different streams talk to
+  // different native plugins, so running on separate timers is safe — the only
+  // plugin that can't tolerate a concurrent call (`call_log`) is protected from
+  // ITSELF by its job's in-flight guard and from OTHER isolates by leader
+  // election (see [_SyncJob] / [_claimLeadership]).
+  final jobs = <_SyncJob>[
+    _SyncJob('sms', SyncIntervals.sms, smsSync.sync),
+    _SyncJob('callLogs', SyncIntervals.callLogs, callLogSync.sync),
+    _SyncJob('contacts', SyncIntervals.contacts, contactSync.sync),
+  ];
+  for (final job in jobs) {
+    job.start();
   }
 
-  // Foreground "sync on open" routes through here so plugin access stays in one
-  // isolate.
+  // Foreground "sync on open" (ChildHomePage sends 'syncNow') → run every stream
+  // immediately, subject to the same leader / in-flight guards.
   service.on('syncNow').listen((event) {
-    runSyncPass();
+    for (final job in jobs) {
+      job.runNow();
+    }
   });
 
-  // The recurring background upload — every 5 seconds.
-  Timer.periodic(const Duration(seconds: 5), (timer) => runSyncPass());
+  // Keep the foreground notification's "last synced" line fresh.
+  Timer.periodic(SyncIntervals.notification, (_) async {
+    if (service is AndroidServiceInstance &&
+        await service.isForegroundService()) {
+      final now = DateTime.now();
+      final hh = now.hour.toString().padLeft(2, '0');
+      final mm = now.minute.toString().padLeft(2, '0');
+      service.setForegroundNotificationInfo(
+        title: 'Vigil Protection Active',
+        content: 'Last active: $hh:$mm',
+      );
+    }
+  });
+}
+
+/// One independently-scheduled upload stream (SMS, call logs, or contacts).
+///
+/// - Runs [_run] on its own [interval].
+/// - `_busy` prevents a slow pass from overlapping the next tick (so a single
+///   stream never queries its plugin twice at once).
+/// - Every run is gated by [_claimLeadership], so when more than one background
+///   isolate happens to be alive only ONE actually uploads — which is what keeps
+///   the fragile `call_log` plugin from being hit by two isolates at once, and
+///   also avoids duplicate uploads.
+class _SyncJob {
+  _SyncJob(this.name, this.interval, this._run);
+
+  final String name;
+  final Duration interval;
+  final Future<void> Function() _run;
+
+  bool _busy = false;
+  Timer? _timer;
+
+  void start() => _timer = Timer.periodic(interval, (_) => _tick());
+
+  void stop() => _timer?.cancel();
+
+  /// Trigger an immediate run (used by 'syncNow'); same guards as a timer tick.
+  Future<void> runNow() => _tick();
+
+  Future<void> _tick() async {
+    if (_busy) return;
+    _busy = true;
+    try {
+      if (!await _claimLeadership()) return; // another isolate owns syncing
+      await _run();
+    } catch (_) {
+      // The sync services already swallow + log their own errors; this is just
+      // a final guard so a timer tick never crashes the isolate.
+    } finally {
+      _busy = false;
+    }
+  }
+}
+
+// ── Cross-isolate leader election ──────────────────────────────────────────
+// Top-level isolate guards don't span isolates (separate memory), and the OS
+// can keep more than one background isolate alive. The one piece of state both
+// isolates CAN see is SharedPreferences, so we elect a single leader through it:
+// only the leader runs the syncs. The leader renews its lease each run; if it
+// dies, another isolate takes over after [_leaderStaleMs].
+const String _leaderIdKey = 'sync_leader_id';
+const String _leaderBeatKey = 'sync_leader_beat_ms';
+const int _leaderStaleMs = 12000;
+
+Future<bool> _claimLeadership() async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.reload();
+  final now = DateTime.now().millisecondsSinceEpoch;
+  final leader = prefs.getString(_leaderIdKey) ?? '';
+  final beat = prefs.getInt(_leaderBeatKey) ?? 0;
+
+  final iAmLeader = leader == _isolateId;
+  final vacant = leader.isEmpty || (now - beat) > _leaderStaleMs;
+  if (!iAmLeader && !vacant) return false;
+
+  // Claim / renew the lease, then re-read to shrink the startup race where two
+  // isolates both see a vacant lease and write at the same time.
+  await prefs.setString(_leaderIdKey, _isolateId);
+  await prefs.setInt(_leaderBeatKey, now);
+  await prefs.reload();
+  return prefs.getString(_leaderIdKey) == _isolateId;
 }
 
 @pragma('vm:entry-point')

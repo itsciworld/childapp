@@ -1,8 +1,8 @@
 import 'package:call_log/call_log.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/network/dio_client.dart';
@@ -22,12 +22,13 @@ class CallLogRepository {
   /// Reads device call logs and maps them into upload-ready [CallLogItem]s
   /// tagged with [childId] / [parentId], **sorted oldest-first**.
   ///
-  /// Incremental behaviour mirrors the SMS sync:
+  /// Incremental behaviour:
   /// - When [since] is given, only calls strictly newer than it are returned —
   ///   the watermark that prevents re-uploading already-sent calls.
-  /// - When [since] is `null` (first ever sync) only the most recent
-  ///   [firstSyncLimit] calls are returned, so the first upload doesn't dump the
-  ///   entire history.
+  /// - When [since] is `null` (first ever sync) the FULL history is returned
+  ///   (oldest-first). The caller uploads it one batch per pass (like the
+  ///   contacts sync), so the whole backlog drains gradually instead of in one
+  ///   huge request.
   ///
   /// Returns an empty list when there is nothing new. Assumes the
   /// `READ_CALL_LOG` permission has already been granted.
@@ -35,9 +36,22 @@ class CallLogRepository {
     required String childId,
     required String parentId,
     DateTime? since,
-    int firstSyncLimit = 100,
   }) async {
-    final entries = (await _query()).toList();
+    // CRITICAL: never call `CallLog.query()` unless READ_CALL_LOG is granted.
+    // The `call_log` plugin has a bug — when queried without permission (which
+    // happens on first launch, before the user grants it, and always in a
+    // background isolate where it can't show a prompt) it replies
+    // MISSING_PERMISSIONS but leaves its internal `request` flag set. From then
+    // on EVERY query returns ALREADY_RUNNING and the plugin double-replies
+    // ("Reply already submitted") — permanently broken until the isolate
+    // restarts, even after permission is granted. Gating on the permission
+    // avoids ever tripping that path.
+    if (!await Permission.phone.isGranted) {
+      debugPrint('[CallLogRepository] READ_CALL_LOG not granted — skipping.');
+      return const [];
+    }
+
+    final entries = (await CallLog.query()).toList();
 
     // Oldest-first so the caller can use the last entry as the new watermark.
     entries.sort((a, b) => (a.timestamp ?? 0).compareTo(b.timestamp ?? 0));
@@ -45,11 +59,9 @@ class CallLogRepository {
     List<CallLogEntry> selected;
     if (since != null) {
       final sinceMs = since.millisecondsSinceEpoch;
-      selected =
-          entries.where((e) => (e.timestamp ?? 0) > sinceMs).toList();
-    } else if (entries.length > firstSyncLimit) {
-      selected = entries.sublist(entries.length - firstSyncLimit);
+      selected = entries.where((e) => (e.timestamp ?? 0) > sinceMs).toList();
     } else {
+      // First sync: take the full history (oldest-first); the caller batches it.
       selected = entries;
     }
 
@@ -72,24 +84,6 @@ class CallLogRepository {
     return logs;
   }
 
-  /// Queries the call log with a small retry on the plugin's `ALREADY_RUNNING`
-  /// error. The `call_log` plugin allows only one query in flight at a time and
-  /// throws `ALREADY_RUNNING` if a second overlaps; rather than dropping the
-  /// whole pass we briefly back off and retry so it self-heals.
-  Future<Iterable<CallLogEntry>> _query({int attempts = 3}) async {
-    for (var attempt = 1; ; attempt++) {
-      try {
-        return await CallLog.query();
-      } on PlatformException catch (e) {
-        if (e.code == 'ALREADY_RUNNING' && attempt < attempts) {
-          debugPrint('[CallLogRepository] query busy, retry $attempt');
-          await Future<void>.delayed(const Duration(milliseconds: 400));
-          continue;
-        }
-        rethrow;
-      }
-    }
-  }
 
   /// Uploads [logs] to `POST /api/logs/store_calllogs`.
   ///

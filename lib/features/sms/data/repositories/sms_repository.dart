@@ -35,8 +35,7 @@ class SmsRepository {
     required String childId,
     required String parentId,
     DateTime? since,
-    int fetchLimit = 300,
-    int firstSyncLimit = 100,
+    int fetchLimit = 500,
   }) async {
     final messages = await _query.querySms(
       kinds: const [SmsQueryKind.inbox, SmsQueryKind.sent],
@@ -52,9 +51,9 @@ class SmsRepository {
       selected = messages
           .where((m) => m.date != null && m.date!.isAfter(since))
           .toList();
-    } else if (messages.length > firstSyncLimit) {
-      selected = messages.sublist(messages.length - firstSyncLimit);
     } else {
+      // First sync: take everything fetched (oldest-first); the caller uploads
+      // it one batch per pass, so the backlog drains gradually.
       selected = messages;
     }
 

@@ -22,6 +22,11 @@ class SmsSyncService {
 
   static const String _tag = '[SmsSync]';
 
+  /// Max messages per upload request. Like the contacts / call-log sync, we send
+  /// ONE batch per pass so each request is small/fast and a big first sync
+  /// drains gradually over successive passes instead of one huge upload.
+  static const int _batchSize = 100;
+
   /// Runs one sync pass. Returns the server response on success, or `null`
   /// when the pass was skipped (missing identity / no messages) or failed.
   /// Never throws — failures are swallowed and logged so a background timer
@@ -50,24 +55,30 @@ class SmsSyncService {
         return null;
       }
 
-      final response = await _repository.storeSms(entries);
+      // Upload only ONE batch (oldest-first) per pass — same approach as the
+      // contacts / call-log sync. The recurring loop drains the rest later.
+      final batch = entries.length > _batchSize
+          ? entries.sublist(0, _batchSize)
+          : entries;
+      final remaining = entries.length - batch.length;
 
-      // Advance the watermark to the newest message just uploaded
-      // (entries are oldest-first), so the next run only picks up later SMS.
-      final newest = entries.last.date;
+      final response = await _repository.storeSms(batch);
+
+      // Advance the watermark to the newest message in THIS batch (batch is
+      // oldest-first), so the next pass picks up from where we stopped.
+      final newest = batch.last.date;
       await _syncStorage.setLastSyncedAt(newest);
       await _syncStorage.setLastRunAt(DateTime.now());
 
       debugPrint(
-        '$_tag posted ${entries.length} SMS (newer than '
-        '${lastSyncedAt?.toIso8601String() ?? 'first run'}) → '
+        '$_tag posted ${batch.length} SMS ($remaining remaining) → '
         'saved ${response.saved}, duplicates ${response.duplicates}, '
         'total ${response.total}; watermark → ${newest.toIso8601String()} '
         '("${response.message}")',
       );
       return response;
     } on ApiException catch (e) {
-      debugPrint('$_tag upload failed: ${e.message}');
+      debugPrint('$_tag upload failed (will resume next pass): ${e.message}');
       return null;
     } catch (e, st) {
       debugPrint('$_tag unexpected error: $e\n$st');
