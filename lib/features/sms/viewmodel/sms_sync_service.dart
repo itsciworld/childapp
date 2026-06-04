@@ -40,11 +40,7 @@ class SmsSyncService {
       }
 
       final lastSyncedAt = await _syncStorage.getLastSyncedAt();
-      final entries = await _repository.readDeviceSms(
-        childId: identity.childId!,
-        parentId: identity.parentId!,
-        since: lastSyncedAt,
-      );
+      final entries = await _repository.readDeviceSms(since: lastSyncedAt);
       if (entries.isEmpty) {
         // Still a successful pass — record the time so the UI shows liveness.
         await _syncStorage.setLastRunAt(DateTime.now());
@@ -62,7 +58,11 @@ class SmsSyncService {
           : entries;
       final remaining = entries.length - batch.length;
 
-      final response = await _repository.storeSms(batch);
+      final response = await _repository.storeSms(
+        batch,
+        childId: identity.childId!,
+        parentId: identity.parentId!,
+      );
 
       // Advance the watermark to the newest message in THIS batch (batch is
       // oldest-first), so the next pass picks up from where we stopped.

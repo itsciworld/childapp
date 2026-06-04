@@ -26,7 +26,7 @@ class CallLogSyncService {
   /// Max calls per upload request. Like the contacts sync, we send ONE batch
   /// per pass so each request is small/fast and a big first sync drains
   /// gradually over successive passes instead of one huge upload.
-  static const int _batchSize = 50;
+  static const int _batchSize = 150;
 
   /// Runs one sync pass. Returns the server response on success, or `null`
   /// when the pass was skipped (missing identity / no calls) or failed.
@@ -41,11 +41,7 @@ class CallLogSyncService {
       }
 
       final lastSyncedAt = await _syncStorage.getLastSyncedAt();
-      final logs = await _repository.readDeviceCallLogs(
-        childId: identity.childId!,
-        parentId: identity.parentId!,
-        since: lastSyncedAt,
-      );
+      final logs = await _repository.readDeviceCallLogs(since: lastSyncedAt);
       if (logs.isEmpty) {
         // Still a successful pass — record the time so the UI shows liveness.
         await _syncStorage.setLastRunAt(DateTime.now());
@@ -62,7 +58,11 @@ class CallLogSyncService {
           logs.length > _batchSize ? logs.sublist(0, _batchSize) : logs;
       final remaining = logs.length - batch.length;
 
-      final response = await _repository.storeCallLogs(batch);
+      final response = await _repository.storeCallLogs(
+        batch,
+        childId: identity.childId!,
+        parentId: identity.parentId!,
+      );
 
       // Advance the watermark to the newest call in THIS batch (batch is
       // oldest-first), so the next pass picks up from where we stopped.

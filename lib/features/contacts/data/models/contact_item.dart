@@ -1,28 +1,27 @@
-/// A single contact uploaded to `POST /api/contacts/store_contacts`.
+/// A single contact inside the `contacts` array of
+/// `POST /api/contacts/store_contacts`.
 ///
-/// Matches one element of the `contacts` array in the request body:
-/// `{ "name", "phone", "child_id", "parent_id" }`.
+/// `child_id` / `parent_id` are NOT part of a contact — they are sent once at
+/// the top level of the request body (see [ContactRepository.storeContacts]).
+///
+/// Matches one element of the `contacts` array:
+/// `{ "displayName", "phones": [ ... ] }` — one entry per device contact,
+/// carrying all of that contact's (new) phone numbers.
 class ContactItem {
   const ContactItem({
-    required this.name,
-    required this.phone,
-    required this.childId,
-    required this.parentId,
+    required this.displayName,
+    required this.phones,
   });
 
   /// Contact display name (empty when unnamed).
-  final String name;
+  final String displayName;
 
-  /// Phone number, e.g. `+923001234567`. Also used as the dedupe key.
-  final String phone;
-
-  final String childId;
-  final String parentId;
+  /// The contact's phone numbers, e.g. `["+923001234567"]`. Each number is
+  /// also used as the dedupe key by the sync service.
+  final List<String> phones;
 
   Map<String, dynamic> toJson() => {
-        'name': name,
-        'phone': phone,
-        'child_id': childId,
-        'parent_id': parentId,
+        'displayName': displayName,
+        'phones': phones,
       };
 }

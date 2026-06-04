@@ -42,11 +42,8 @@ class ContactSyncService {
       }
 
       final synced = await _syncStorage.getSyncedKeys();
-      final contacts = await _repository.readDeviceContacts(
-        childId: identity.childId!,
-        parentId: identity.parentId!,
-        alreadySynced: synced,
-      );
+      final contacts =
+          await _repository.readDeviceContacts(alreadySynced: synced);
       if (contacts.isEmpty) {
         // Still a successful pass — record the time so the UI shows liveness.
         await _syncStorage.setLastRunAt(DateTime.now());
@@ -66,9 +63,14 @@ class ContactSyncService {
           ? contacts.sublist(0, _batchSize)
           : contacts;
 
-      final response = await _repository.storeContacts(batch);
-      // Mark this batch's numbers as synced so the next pass skips them.
-      await _syncStorage.addSyncedKeys(batch.map((c) => c.phone));
+      final response = await _repository.storeContacts(
+        batch,
+        childId: identity.childId!,
+        parentId: identity.parentId!,
+      );
+      // Mark this batch's numbers as synced so the next pass skips them. Each
+      // contact may carry several numbers, so flatten across the batch.
+      await _syncStorage.addSyncedKeys(batch.expand((c) => c.phones));
       await _syncStorage.setLastRunAt(DateTime.now());
 
       debugPrint(

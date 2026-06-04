@@ -19,21 +19,20 @@ class SmsRepository {
   final SmsQuery _query = SmsQuery();
 
   /// Reads device messages (inbox + sent) and maps them into upload-ready
-  /// [SmsEntry]s tagged with [childId] / [parentId], **sorted oldest-first**.
+  /// [SmsEntry]s, **sorted oldest-first**. The child / parent ids are no longer
+  /// carried per entry — they are sent once at the top level by [storeSms].
   ///
   /// Incremental behaviour:
   /// - When [since] is given, only messages strictly newer than it are
   ///   returned — this is the watermark that prevents re-uploading messages
   ///   already sent on a previous app session.
   /// - When [since] is `null` (first ever sync on this device) only the most
-  ///   recent [firstSyncLimit] messages are returned, so the very first upload
+  ///   recent [fetchLimit] messages are returned, so the very first upload
   ///   doesn't dump the entire history.
   ///
   /// Returns an empty list when there is nothing new. Assumes the `READ_SMS`
   /// permission has already been granted by the permissions flow.
   Future<List<SmsEntry>> readDeviceSms({
-    required String childId,
-    required String parentId,
     DateTime? since,
     int fetchLimit = 500,
   }) async {
@@ -63,29 +62,71 @@ class SmsRepository {
       if (address == null || address.isEmpty) continue;
       entries.add(
         SmsEntry(
+          id: message.id,
+          threadId: message.threadId,
           address: address,
           body: message.body ?? '',
           date: message.date ?? DateTime.now(),
-          childId: childId,
-          parentId: parentId,
+          dateSent: message.dateSent,
+          read: message.read ?? false,
+          kind: _kindLabel(message.kind),
+          state: _stateLabel(message.kind),
         ),
       );
     }
     return entries;
   }
 
+  /// Maps the plugin's [SmsMessageKind] to the mailbox label the backend
+  /// expects: inbox messages are `received` kind → `"inbox"`.
+  static String _kindLabel(SmsMessageKind? kind) {
+    switch (kind) {
+      case SmsMessageKind.sent:
+        return 'sent';
+      case SmsMessageKind.draft:
+        return 'draft';
+      case SmsMessageKind.received:
+      case null:
+        return 'inbox';
+    }
+  }
+
+  /// Derives the delivery state from the mailbox: sent messages are `"sent"`,
+  /// everything in the inbox was `"received"`.
+  static String _stateLabel(SmsMessageKind? kind) {
+    switch (kind) {
+      case SmsMessageKind.sent:
+        return 'sent';
+      case SmsMessageKind.draft:
+        return 'draft';
+      case SmsMessageKind.received:
+      case null:
+        return 'received';
+    }
+  }
+
   /// Uploads [entries] to `POST /api/sms/store_sms`.
   ///
-  /// The backend-issued device key (stored at pairing) is sent in the
-  /// `x-device-key` header so the server can authorise this paired device.
+  /// [childId] / [parentId] are sent once at the top level of the body,
+  /// alongside the `sms` array. The backend-issued device key (stored at
+  /// pairing) is sent in the `x-device-key` header so the server can authorise
+  /// this paired device.
   ///
   /// Throws [ApiException] on any network / server failure.
-  Future<StoreSmsResponse> storeSms(List<SmsEntry> entries) async {
+  Future<StoreSmsResponse> storeSms(
+    List<SmsEntry> entries, {
+    required String childId,
+    required String parentId,
+  }) async {
     try {
       final deviceKey = await _deviceStorage.getDeviceKey();
       final response = await _dio.post<dynamic>(
         '/api/sms/store_sms',
-        data: {'sms': entries.map((e) => e.toJson()).toList()},
+        data: {
+          'child_id': childId,
+          'parent_id': parentId,
+          'sms': entries.map((e) => e.toJson()).toList(),
+        },
         options: Options(
           headers: {
             if (deviceKey != null && deviceKey.isNotEmpty)

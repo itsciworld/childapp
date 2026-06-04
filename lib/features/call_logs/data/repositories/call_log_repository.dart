@@ -19,8 +19,9 @@ class CallLogRepository {
   final Dio _dio;
   final DeviceStorage _deviceStorage;
 
-  /// Reads device call logs and maps them into upload-ready [CallLogItem]s
-  /// tagged with [childId] / [parentId], **sorted oldest-first**.
+  /// Reads device call logs and maps them into upload-ready [CallLogItem]s,
+  /// **sorted oldest-first**. The child / parent ids are no longer carried per
+  /// item — they are sent once at the top level by [storeCallLogs].
   ///
   /// Incremental behaviour:
   /// - When [since] is given, only calls strictly newer than it are returned —
@@ -33,8 +34,6 @@ class CallLogRepository {
   /// Returns an empty list when there is nothing new. Assumes the
   /// `READ_CALL_LOG` permission has already been granted.
   Future<List<CallLogItem>> readDeviceCallLogs({
-    required String childId,
-    required String parentId,
     DateTime? since,
   }) async {
     // CRITICAL: never call `CallLog.query()` unless READ_CALL_LOG is granted.
@@ -76,8 +75,6 @@ class CallLogRepository {
           callType: (entry.callType ?? CallType.unknown).name,
           timestamp: DateTime.fromMillisecondsSinceEpoch(entry.timestamp ?? 0),
           duration: entry.duration ?? 0,
-          childId: childId,
-          parentId: parentId,
         ),
       );
     }
@@ -87,16 +84,26 @@ class CallLogRepository {
 
   /// Uploads [logs] to `POST /api/logs/store_calllogs`.
   ///
-  /// The backend-issued device key (stored at pairing) is sent in the
-  /// `x-device-key` header so the server can authorise this paired device.
+  /// [childId] / [parentId] are sent once at the top level of the body,
+  /// alongside the `logs` array. The backend-issued device key (stored at
+  /// pairing) is sent in the `x-device-key` header so the server can authorise
+  /// this paired device.
   ///
   /// Throws [ApiException] on any network / server failure.
-  Future<StoreCallLogsResponse> storeCallLogs(List<CallLogItem> logs) async {
+  Future<StoreCallLogsResponse> storeCallLogs(
+    List<CallLogItem> logs, {
+    required String childId,
+    required String parentId,
+  }) async {
     try {
       final deviceKey = await _deviceStorage.getDeviceKey();
       final response = await _dio.post<dynamic>(
         '/api/logs/store_calllogs',
-        data: {'logs': logs.map((e) => e.toJson()).toList()},
+        data: {
+          'child_id': childId,
+          'parent_id': parentId,
+          'logs': logs.map((e) => e.toJson()).toList(),
+        },
         options: Options(
           headers: {
             if (deviceKey != null && deviceKey.isNotEmpty)

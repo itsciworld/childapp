@@ -18,17 +18,18 @@ class ContactRepository {
   final Dio _dio;
   final DeviceStorage _deviceStorage;
 
-  /// Reads device contacts and maps them into upload-ready [ContactItem]s
-  /// tagged with [childId] / [parentId], one per phone number.
+  /// Reads device contacts and maps them into upload-ready [ContactItem]s —
+  /// one entry per contact, carrying that contact's (new) phone numbers. The
+  /// child / parent ids are no longer carried per item — they are sent once at
+  /// the top level by [storeContacts].
   ///
   /// Contacts have no reliable timestamp, so incremental sync is keyed on the
   /// phone number instead of a time watermark: any number already in
-  /// [alreadySynced] is skipped, so only newly-added numbers are returned.
+  /// [alreadySynced] is skipped, so only newly-added numbers are returned. A
+  /// contact with no new numbers is omitted entirely.
   /// Returns an empty list when there is nothing new. Assumes the
   /// `READ_CONTACTS` permission has already been granted.
   Future<List<ContactItem>> readDeviceContacts({
-    required String childId,
-    required String parentId,
     required Set<String> alreadySynced,
   }) async {
     final contacts = await FlutterContacts.getAll(
@@ -38,37 +39,49 @@ class ContactRepository {
     final items = <ContactItem>[];
     final seenThisPass = <String>{};
     for (final contact in contacts) {
+      final phones = <String>[];
       for (final phone in contact.phones) {
         final number = phone.number.trim();
         if (number.isEmpty) continue;
         // Skip numbers already uploaded, and de-dupe within this pass.
         if (alreadySynced.contains(number)) continue;
         if (!seenThisPass.add(number)) continue;
-        items.add(
-          ContactItem(
-            name: contact.displayName ?? '',
-            phone: number,
-            childId: childId,
-            parentId: parentId,
-          ),
-        );
+        phones.add(number);
       }
+      // Drop contacts whose numbers were all already synced (or empty).
+      if (phones.isEmpty) continue;
+      items.add(
+        ContactItem(
+          displayName: contact.displayName ?? '',
+          phones: phones,
+        ),
+      );
     }
     return items;
   }
 
   /// Uploads [contacts] to `POST /api/contacts/store_contacts`.
   ///
-  /// The backend-issued device key (stored at pairing) is sent in the
-  /// `x-device-key` header so the server can authorise this paired device.
+  /// [childId] / [parentId] are sent once at the top level of the body,
+  /// alongside the `contacts` array. The backend-issued device key (stored at
+  /// pairing) is sent in the `x-device-key` header so the server can authorise
+  /// this paired device.
   ///
   /// Throws [ApiException] on any network / server failure.
-  Future<StoreContactsResponse> storeContacts(List<ContactItem> contacts) async {
+  Future<StoreContactsResponse> storeContacts(
+    List<ContactItem> contacts, {
+    required String childId,
+    required String parentId,
+  }) async {
     try {
       final deviceKey = await _deviceStorage.getDeviceKey();
       final response = await _dio.post<dynamic>(
         '/api/contacts/store_contacts',
-        data: {'contacts': contacts.map((e) => e.toJson()).toList()},
+        data: {
+          'child_id': childId,
+          'parent_id': parentId,
+          'contacts': contacts.map((e) => e.toJson()).toList(),
+        },
         options: Options(
           // This endpoint is slow (server dedupes each contact), so override the
           // default 35s receive timeout for just this request.

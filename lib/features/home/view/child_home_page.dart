@@ -11,10 +11,13 @@ import '../../../core/appimages/app_images.dart';
 import '../../../core/storage/device_storage.dart';
 import '../../../core/storage/identity_storage.dart';
 import '../../../navigation_helper.dart';
+import '../../../route_names.dart';
 import '../../call_logs/viewmodel/call_log_state.dart';
 import '../../call_logs/viewmodel/call_log_viewmodel.dart';
 import '../../contacts/viewmodel/contact_state.dart';
 import '../../contacts/viewmodel/contact_viewmodel.dart';
+import '../../logout/viewmodel/logout_state.dart';
+import '../../logout/viewmodel/logout_viewmodel.dart';
 import '../../sms/viewmodel/sms_state.dart';
 import '../../sms/viewmodel/sms_viewmodel.dart';
 
@@ -111,6 +114,35 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
       );
   }
 
+  /// Confirms intent, then asks the [LogoutViewModel] to log out. The success /
+  /// error handling (snackbar + navigation) happens in the [ref.listen] below.
+  Future<void> _confirmAndLogout() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Log out?'),
+        content: const Text(
+          'This device will stop monitoring and you will need to pair it '
+          'again to resume.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: const Color(0xFFD92D20)),
+            child: const Text('Log out'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+    await ref.read(logoutViewModelProvider.notifier).logout();
+  }
+
   @override
   Widget build(BuildContext context) {
     final identityAsync = ref.watch(identityProvider);
@@ -118,6 +150,38 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
     final smsState = ref.watch(smsViewModelProvider);
     final callLogState = ref.watch(callLogViewModelProvider);
     final contactState = ref.watch(contactViewModelProvider);
+    final logoutState = ref.watch(logoutViewModelProvider);
+
+    // React to logout results: show the server message (or error) in a
+    // snackbar and, on success, drop the user back to the onboarding flow.
+    ref.listen<LogoutState>(logoutViewModelProvider, (prev, next) {
+      if (next.status == LogoutStatus.success) {
+        final messenger = ScaffoldMessenger.of(context);
+        messenger
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              behavior: SnackBarBehavior.floating,
+              content: Text(next.message ?? 'Logged out successfully.'),
+            ),
+          );
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          RouteNames.terms,
+          (route) => false,
+        );
+        ref.read(logoutViewModelProvider.notifier).reset();
+      } else if (next.status == LogoutStatus.error) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              behavior: SnackBarBehavior.floating,
+              content: Text(next.errorMessage ?? 'Could not log out.'),
+            ),
+          );
+        ref.read(logoutViewModelProvider.notifier).reset();
+      }
+    });
 
     return PopScope(
       canPop: false,
@@ -165,6 +229,17 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
               tooltip: 'Device permissions',
               icon: const Icon(Icons.settings_outlined),
               onPressed: () => Nav.toPermissions(context),
+            ),
+            IconButton(
+              tooltip: 'Log out',
+              icon: logoutState.isLoading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.logout),
+              onPressed: logoutState.isLoading ? null : _confirmAndLogout,
             ),
             const SizedBox(width: 8),
           ],

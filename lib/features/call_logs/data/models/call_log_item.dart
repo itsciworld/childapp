@@ -1,8 +1,11 @@
-/// A single call-log record uploaded to `POST /api/logs/store_calllogs`.
+/// A single call-log record inside the `logs` array of
+/// `POST /api/logs/store_calllogs`.
 ///
-/// Matches one element of the `logs` array in the request body:
-/// `{ "number", "name", "callType", "timestamp", "duration", "child_id",
-/// "parent_id" }`.
+/// `child_id` / `parent_id` are NOT part of a log — they are sent once at the
+/// top level of the request body (see [CallLogRepository.storeCallLogs]).
+///
+/// Matches one element of the `logs` array:
+/// `{ "number", "name", "callType", "timestamp", "duration" }`.
 class CallLogItem {
   const CallLogItem({
     required this.number,
@@ -10,8 +13,6 @@ class CallLogItem {
     required this.callType,
     required this.timestamp,
     required this.duration,
-    required this.childId,
-    required this.parentId,
   });
 
   /// Other party's phone number, e.g. `+923001234567`.
@@ -29,17 +30,12 @@ class CallLogItem {
   /// Call length in seconds.
   final int duration;
 
-  final String childId;
-  final String parentId;
-
   Map<String, dynamic> toJson() => {
         'number': number,
         'name': name,
         'callType': callType,
-        // ISO-8601 in UTC, e.g. `2026-05-05T10:00:00Z`.
+        // ISO-8601 in UTC, e.g. `2026-06-02T10:00:00Z`.
         'timestamp': timestamp.toUtc().toIso8601String(),
         'duration': duration,
-        'child_id': childId,
-        'parent_id': parentId,
       };
 }
