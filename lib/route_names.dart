@@ -19,6 +19,7 @@ class RouteNames {
   static const String childProfile = '/childProfile';
   static const String allowPermission = '/allowPermission';
   static const String permissions = '/permissions';
+  static const String permissionsSettings = '/permissionsSettings';
 
   // Final step
   static const String finalMonitoring = '/finalMonitoring';

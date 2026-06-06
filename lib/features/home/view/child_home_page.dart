@@ -10,7 +10,7 @@ import '../../../core/appColor/app_theme/app_gradient.dart';
 import '../../../core/appimages/app_images.dart';
 import '../../../core/storage/device_storage.dart';
 import '../../../core/storage/identity_storage.dart';
-import '../../../navigation_helper.dart';
+import '../../../core/utils/app_toast.dart';
 import '../../../route_names.dart';
 import '../../call_logs/viewmodel/call_log_state.dart';
 import '../../call_logs/viewmodel/call_log_viewmodel.dart';
@@ -114,6 +114,12 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
       );
   }
 
+  /// Opens the full permissions settings screen. The page loads its own data
+  /// from the backend (reading childId from storage), so no arguments needed.
+  void _openPermissionsSettings() {
+    Navigator.pushNamed(context, RouteNames.permissionsSettings);
+  }
+
   /// Confirms intent, then asks the [LogoutViewModel] to log out. The success /
   /// error handling (snackbar + navigation) happens in the [ref.listen] below.
   Future<void> _confirmAndLogout() async {
@@ -132,7 +138,8 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: const Color(0xFFD92D20)),
+            style:
+                TextButton.styleFrom(foregroundColor: const Color(0xFFD92D20)),
             child: const Text('Log out'),
           ),
         ],
@@ -153,32 +160,43 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
     final logoutState = ref.watch(logoutViewModelProvider);
 
     // React to logout results: show the server message (or error) in a
-    // snackbar and, on success, drop the user back to the onboarding flow.
+    // toast and, on success or device unpaired, drop the user back to login.
     ref.listen<LogoutState>(logoutViewModelProvider, (prev, next) {
       if (next.status == LogoutStatus.success) {
-        final messenger = ScaffoldMessenger.of(context);
-        messenger
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            SnackBar(
-              behavior: SnackBarBehavior.floating,
-              content: Text(next.message ?? 'Logged out successfully.'),
-            ),
-          );
+        showAppToast(
+          context: context,
+          title: 'Success',
+          subtitle: next.message ?? 'Logged out successfully',
+          type: ToastType.success,
+        );
+
         Navigator.of(context).pushNamedAndRemoveUntil(
           RouteNames.terms,
           (route) => false,
         );
         ref.read(logoutViewModelProvider.notifier).reset();
+      } else if (next.status == LogoutStatus.deviceUnpaired) {
+        // Device was unpaired/removed - clear everything and go to login
+        showAppToast(
+          context: context,
+          title: 'Device Unpaired',
+          subtitle: next.errorMessage ?? 'This child profile was removed',
+          type: ToastType.warning,
+        );
+
+        // Navigate to login screen, clearing all routes
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          RouteNames.login,
+          (route) => false,
+        );
+        ref.read(logoutViewModelProvider.notifier).reset();
       } else if (next.status == LogoutStatus.error) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            SnackBar(
-              behavior: SnackBarBehavior.floating,
-              content: Text(next.errorMessage ?? 'Could not log out.'),
-            ),
-          );
+        showAppToast(
+          context: context,
+          title: 'Error',
+          subtitle: next.errorMessage ?? 'Could not log out',
+          type: ToastType.error,
+        );
         ref.read(logoutViewModelProvider.notifier).reset();
       }
     });
@@ -228,7 +246,7 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
             IconButton(
               tooltip: 'Device permissions',
               icon: const Icon(Icons.settings_outlined),
-              onPressed: () => Nav.toPermissions(context),
+              onPressed: _openPermissionsSettings,
             ),
             IconButton(
               tooltip: 'Log out',

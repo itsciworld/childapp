@@ -5,6 +5,7 @@ import 'features/auth/view/login_page.dart';
 import 'features/verify_otp/view/verify_otp_page.dart';
 import 'features/pairing/view/pairing_page.dart';
 import 'features/permissions/view/permissions_page.dart';
+import 'features/permissions/view/permissions_settings_page.dart';
 import 'features/home/view/child_home_page.dart';
 import 'pages/terms_page.dart';
 import 'pages/welcome_page.dart';
@@ -27,6 +28,8 @@ class AppRoutes {
         RouteNames.allowPermission: (context) =>
             _buildAllowPermissionPage(context),
         RouteNames.permissions: (context) => const PermissionsPage(),
+        RouteNames.permissionsSettings: (context) =>
+            const PermissionsSettingsPage(),
         RouteNames.childHome: (context) => const ChildHomePage(),
 
         // Final step
@@ -75,4 +78,5 @@ class AppRoutes {
     }
     return const WelcomePage();
   }
+
 }

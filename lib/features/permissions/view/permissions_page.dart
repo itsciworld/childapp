@@ -10,21 +10,51 @@ import '../viewmodel/permissions_viewmodel.dart';
 /// Single, toggle-based permissions screen. Replaces the eight individual
 /// service pages — each row requests one OS permission via
 /// [PermissionsViewModel].
-class PermissionsPage extends ConsumerWidget {
+class PermissionsPage extends ConsumerStatefulWidget {
   const PermissionsPage({super.key});
 
+  @override
+  ConsumerState<PermissionsPage> createState() => _PermissionsPageState();
+}
+
+class _PermissionsPageState extends ConsumerState<PermissionsPage>
+    with WidgetsBindingObserver {
   static const Color _darkNavy = Color(0xFF1A237E);
   static const Color _accentGreen = Color(0xFF15BEB5);
 
   /// Minimum permissions the child must grant before they can continue.
   static const int _minGrantedToContinue = 2;
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Usage Access (and other settings-screen permissions like battery
+    // optimisation) are granted on a system Settings page that returns no
+    // callback. So when the app comes back to the foreground, re-read every
+    // permission's real status — this is what makes the Usage Access toggle
+    // flip to ON after the child grants it in Settings.
+    if (state == AppLifecycleState.resumed) {
+      ref.read(permissionsViewModelProvider.notifier).refreshAll();
+    }
+  }
+
   /// Sends the current permission selections to the backend, then enters the
   /// child home screen on success. Errors surface as a snackbar.
-  Future<void> _onContinue(BuildContext context, WidgetRef ref) async {
+  Future<void> _onContinue() async {
     final messenger = ScaffoldMessenger.of(context);
     final ok = await ref.read(permissionsViewModelProvider.notifier).submit();
-    if (!context.mounted) return;
+    if (!mounted) return;
     if (ok) {
       Nav.toChildHome(context);
     } else {
@@ -39,7 +69,7 @@ class PermissionsPage extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final state = ref.watch(permissionsViewModelProvider);
     final notifier = ref.read(permissionsViewModelProvider.notifier);
     final grantedCount = state.granted.values.where((g) => g).length;
@@ -64,9 +94,7 @@ class PermissionsPage extends ConsumerWidget {
                     color: Colors.transparent,
                     child: InkWell(
                       borderRadius: BorderRadius.circular(14),
-                      onTap: state.submitting
-                          ? null
-                          : () => _onContinue(context, ref),
+                      onTap: state.submitting ? null : _onContinue,
                       child: Center(
                         child: state.submitting
                             ? const SizedBox(

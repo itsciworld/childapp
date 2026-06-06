@@ -1,4 +1,4 @@
-enum LogoutStatus { initial, loading, success, error }
+enum LogoutStatus { initial, loading, success, error, deviceUnpaired }
 
 /// Immutable UI state for the logout action, driven by [LogoutViewModel].
 class LogoutState {

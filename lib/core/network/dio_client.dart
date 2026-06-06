@@ -5,29 +5,31 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../config/env_config.dart';
 import '../storage/device_storage.dart';
 
-/// A single, shared [Dio] instance configured from [EnvConfig].
-///
-/// Repositories should depend on this provider rather than creating their own
-/// HTTP client, so base URL / timeouts / interceptors live in one place.
-final dioProvider = Provider<Dio>((ref) {
+/// Builds a [Dio] configured for [baseUrl] with the shared timeouts, the
+/// `x-device-key` interceptor, and (in debug) response logging, so that config
+/// lives in one place.
+Dio _buildDio(String baseUrl) {
   final dio = Dio(
     BaseOptions(
-      baseUrl: EnvConfig.apiBaseUrl,
+      baseUrl: baseUrl,
       connectTimeout: Duration(milliseconds: EnvConfig.connectTimeoutMs),
       receiveTimeout: Duration(milliseconds: EnvConfig.receiveTimeoutMs),
       headers: const {'Content-Type': 'application/json'},
     ),
   );
 
-  // Attach the backend-issued device key to EVERY request as `x-device-key`,
+  // Attach the backend-issued device key to every request as `x-device-key`,
   // so each repository no longer has to set it by hand. Before pairing (no key
-  // stored yet) the header is simply omitted. An explicitly-set header on the
+  // stored yet) the header is simply omitted. A request can opt out — e.g. the
+  // permissions calls, which authenticate with the bearer token only — by
+  // setting `extra: {'skipDeviceKey': true}`. An explicitly-set header on the
   // request is left untouched.
   final deviceStorage = DeviceStorage();
   dio.interceptors.add(
     InterceptorsWrapper(
       onRequest: (options, handler) async {
-        if (!options.headers.containsKey('x-device-key')) {
+        final skip = options.extra['skipDeviceKey'] == true;
+        if (!skip && !options.headers.containsKey('x-device-key')) {
           final deviceKey = await deviceStorage.getDeviceKey();
           if (deviceKey != null && deviceKey.isNotEmpty) {
             options.headers['x-device-key'] = deviceKey;
@@ -52,4 +54,10 @@ final dioProvider = Provider<Dio>((ref) {
   }
 
   return dio;
-});
+}
+
+/// A single, shared [Dio] for the main monitoring backend ([EnvConfig.apiBaseUrl]).
+///
+/// Repositories should depend on this provider rather than creating their own
+/// HTTP client, so base URL / timeouts / interceptors live in one place.
+final dioProvider = Provider<Dio>((ref) => _buildDio(EnvConfig.apiBaseUrl));
