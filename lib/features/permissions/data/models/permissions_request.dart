@@ -145,6 +145,7 @@ class DataAccess {
     this.calendar = false,
     this.location = false,
     this.appUsage = false,
+    this.networkWifi = false,
   });
 
   final bool messages;
@@ -158,6 +159,10 @@ class DataAccess {
   /// the toggle already reflects the live OS grant on the frontend.
   final bool appUsage;
 
+  /// Network & Wi-Fi access (Nearby Wi-Fi Devices runtime permission) backing
+  /// the live-status feature's Wi-Fi details. Sent under `network_wifi`.
+  final bool networkWifi;
+
   factory DataAccess.fromJson(Map<String, dynamic> json) {
     bool flag(dynamic v) => v == true;
     return DataAccess(
@@ -167,6 +172,7 @@ class DataAccess {
       calendar: flag(json['calendar']),
       location: flag(json['location']),
       appUsage: flag(json['app_usage']),
+      networkWifi: flag(json['network_wifi']),
     );
   }
 
@@ -177,6 +183,7 @@ class DataAccess {
         'calendar': calendar,
         'location': location,
         'app_usage': appUsage,
+        'network_wifi': networkWifi,
       };
 
   DataAccess copyWith({
@@ -186,6 +193,7 @@ class DataAccess {
     bool? calendar,
     bool? location,
     bool? appUsage,
+    bool? networkWifi,
   }) {
     return DataAccess(
       messages: messages ?? this.messages,
@@ -194,6 +202,7 @@ class DataAccess {
       calendar: calendar ?? this.calendar,
       location: location ?? this.location,
       appUsage: appUsage ?? this.appUsage,
+      networkWifi: networkWifi ?? this.networkWifi,
     );
   }
 }

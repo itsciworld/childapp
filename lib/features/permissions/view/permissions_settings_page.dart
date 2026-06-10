@@ -306,6 +306,15 @@ class _PermissionsSettingsPageState
                           PermissionKey.usageAccess, val),
                       icon: Icons.bar_chart_rounded,
                     ),
+                    _buildDivider(),
+                    _buildToggleTile(
+                      title: 'Network & Wi-Fi',
+                      subtitle: 'Report live connection and Wi-Fi details',
+                      value: data.networkWifi,
+                      onChanged: (val) => notifier.toggleDataPermission(
+                          PermissionKey.nearbyWifiDevices, val),
+                      icon: Icons.wifi_rounded,
+                    ),
                   ]),
 
                   const SizedBox(height: 32),

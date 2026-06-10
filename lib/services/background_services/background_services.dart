@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/config/env_config.dart';
 import '../../features/call_logs/viewmodel/call_log_sync_service.dart';
 import '../../features/contacts/viewmodel/contact_sync_service.dart';
+import '../../features/live_status/viewmodel/live_status_sync_service.dart';
 import '../../features/sms/viewmodel/sms_sync_service.dart';
 
 /// How often each monitored stream uploads. Each stream runs on its OWN timer,
@@ -20,6 +21,11 @@ class SyncIntervals {
   static const Duration sms = Duration(seconds: 5);
   static const Duration callLogs = Duration(seconds: 5);
   static const Duration contacts = Duration(seconds: 5);
+
+  /// Live status (battery + connectivity) is a current snapshot, not a backlog
+  /// to drain, so it pushes less often than the message/call streams to avoid
+  /// hammering the server with near-identical payloads.
+  static const Duration liveStatus = Duration(seconds: 30);
 
   /// How often the foreground notification's "last synced" line refreshes.
   static const Duration notification = Duration(seconds: 30);
@@ -107,6 +113,7 @@ void onStart(ServiceInstance service) async {
   final smsSync = container.read(smsSyncServiceProvider);
   final callLogSync = container.read(callLogSyncServiceProvider);
   final contactSync = container.read(contactSyncServiceProvider);
+  final liveStatusSync = container.read(liveStatusSyncServiceProvider);
 
   // Each stream gets its OWN timer + interval + in-flight guard, so they're
   // fully independent: change any interval in [SyncIntervals] without touching
@@ -119,6 +126,7 @@ void onStart(ServiceInstance service) async {
     _SyncJob('sms', SyncIntervals.sms, smsSync.sync),
     _SyncJob('callLogs', SyncIntervals.callLogs, callLogSync.sync),
     _SyncJob('contacts', SyncIntervals.contacts, contactSync.sync),
+    _SyncJob('liveStatus', SyncIntervals.liveStatus, liveStatusSync.sync),
   ];
   for (final job in jobs) {
     job.start();

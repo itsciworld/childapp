@@ -16,6 +16,8 @@ import '../../call_logs/viewmodel/call_log_state.dart';
 import '../../call_logs/viewmodel/call_log_viewmodel.dart';
 import '../../contacts/viewmodel/contact_state.dart';
 import '../../contacts/viewmodel/contact_viewmodel.dart';
+import '../../live_status/viewmodel/live_status_state.dart';
+import '../../live_status/viewmodel/live_status_viewmodel.dart';
 import '../../logout/viewmodel/logout_state.dart';
 import '../../logout/viewmodel/logout_viewmodel.dart';
 import '../../sms/viewmodel/sms_state.dart';
@@ -79,6 +81,11 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
       ref.read(smsViewModelProvider.notifier).refreshStatus();
       ref.read(callLogViewModelProvider.notifier).refreshStatus();
       ref.read(contactViewModelProvider.notifier).refreshStatus();
+      ref.read(liveStatusViewModelProvider.notifier).refreshStatus();
+    });
+    // Populate the live-status card immediately, before the first 3s tick.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(liveStatusViewModelProvider.notifier).refreshStatus();
     });
   }
 
@@ -157,6 +164,7 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
     final smsState = ref.watch(smsViewModelProvider);
     final callLogState = ref.watch(callLogViewModelProvider);
     final contactState = ref.watch(contactViewModelProvider);
+    final liveStatusState = ref.watch(liveStatusViewModelProvider);
     final logoutState = ref.watch(logoutViewModelProvider);
 
     // React to logout results: show the server message (or error) in a
@@ -297,6 +305,12 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
                     callLogState: callLogState,
                     contactState: contactState,
                   ),
+                ),
+                const SizedBox(height: 16),
+                _Entrance(
+                  animation: _entrance,
+                  index: 2,
+                  child: _LiveStatusCard(state: liveStatusState),
                 ),
               ],
             );
@@ -918,6 +932,262 @@ class _SectionTitle extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Shows the live device status (battery + connectivity) the background service
+/// pushes to the backend: an Active/Idle chip + last-update time, then a
+/// battery tile and a connection tile read live on the device.
+class _LiveStatusCard extends StatelessWidget {
+  const _LiveStatusCard({required this.state});
+
+  final LiveStatusState state;
+
+  static const Color _green = Color(0xFF16A34A);
+  static const Color _grey = Color(0xFF9CA3AF);
+
+  @override
+  Widget build(BuildContext context) {
+    final snap = state.snapshot;
+    final battery = snap?.batteryInfo;
+    final conn = snap?.connectivity;
+    final isOnline = snap?.isOnline ?? false;
+
+    // "Active" when the background isolate pushed within the last 90s.
+    final last = state.lastSyncedAt;
+    final live = last != null &&
+        DateTime.now().difference(last) < const Duration(seconds: 90);
+
+    // ── Connection tile values ──
+    String connValue;
+    String? connSub;
+    if (conn == null) {
+      connValue = '—';
+      connSub = null;
+    } else if (!isOnline) {
+      connValue = 'Offline';
+      connSub = null;
+    } else {
+      connValue = conn.connectionType.isEmpty
+          ? 'Online'
+          : conn.connectionType.map(_prettyType).join(', ');
+      if (conn.hasWifi && conn.wifiInfo != null) {
+        final w = conn.wifiInfo!;
+        final parts = <String>[
+          if (w.ssid != null && w.ssid!.isNotEmpty) w.ssid!,
+          if (w.ipAddress != null && w.ipAddress!.isNotEmpty) w.ipAddress!,
+        ];
+        connSub = parts.isEmpty ? null : parts.join(' · ');
+      }
+    }
+
+    // ── Battery tile values ──
+    final level = battery?.level;
+    final batValue =
+        (level == null || level < 0) ? '—' : '$level%';
+    String? batSub;
+    if (battery != null) {
+      batSub = [
+        _prettyBatteryState(battery.state),
+        if (battery.isInBatterySaveMode) 'Saver on',
+      ].join(' · ');
+    }
+
+    return _CardShell(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: _SectionTitle(
+                    icon: Icons.bolt_outlined, title: 'Live status'),
+              ),
+              _StatusChip(
+                view: _SyncView(
+                  live ? 'Active' : 'Idle',
+                  live ? _green : _grey,
+                  live,
+                  last,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 3),
+          Padding(
+            padding: const EdgeInsets.only(left: 25),
+            child: Text(
+              last == null
+                  ? 'Waiting for first update'
+                  : 'Last update ${_formatTime(last)}',
+              style: const TextStyle(
+                fontSize: 11.5,
+                color: Color(0xFF9CA3AF),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          _LiveDetailTile(
+            icon: isOnline
+                ? Icons.wifi_tethering
+                : Icons.portable_wifi_off_outlined,
+            accent: isOnline ? _green : _grey,
+            title: 'Connection',
+            value: connValue,
+            subtitle: connSub,
+          ),
+          const SizedBox(height: 8),
+          _LiveDetailTile(
+            icon: _batteryIcon(level, battery?.isInBatterySaveMode ?? false),
+            accent: _batteryColor(level),
+            title: 'Battery',
+            value: batValue,
+            subtitle: batSub,
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _formatTime(DateTime t) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(t.hour)}:${two(t.minute)}:${two(t.second)}';
+  }
+
+  /// Pretty-prints a connectivity_plus result name.
+  static String _prettyType(String type) {
+    switch (type) {
+      case 'wifi':
+        return 'Wi-Fi';
+      case 'mobile':
+        return 'Mobile';
+      case 'ethernet':
+        return 'Ethernet';
+      case 'bluetooth':
+        return 'Bluetooth';
+      case 'vpn':
+        return 'VPN';
+      default:
+        return type.isEmpty
+            ? type
+            : '${type[0].toUpperCase()}${type.substring(1)}';
+    }
+  }
+
+  /// Pretty-prints a battery_plus state name.
+  static String _prettyBatteryState(String s) {
+    switch (s) {
+      case 'charging':
+        return 'Charging';
+      case 'discharging':
+        return 'Discharging';
+      case 'full':
+        return 'Full';
+      case 'connectedNotCharging':
+        return 'Connected';
+      default:
+        return 'Unknown';
+    }
+  }
+
+  static IconData _batteryIcon(int? level, bool saver) {
+    if (saver) return Icons.battery_saver_outlined;
+    if (level == null || level < 0) return Icons.battery_unknown_outlined;
+    if (level >= 95) return Icons.battery_full_outlined;
+    if (level >= 60) return Icons.battery_5_bar_outlined;
+    if (level >= 35) return Icons.battery_3_bar_outlined;
+    if (level >= 15) return Icons.battery_2_bar_outlined;
+    return Icons.battery_alert_outlined;
+  }
+
+  static Color _batteryColor(int? level) {
+    if (level == null || level < 0) return _grey;
+    if (level <= 15) return const Color(0xFFD92D20); // red
+    if (level <= 35) return const Color(0xFFD97706); // amber
+    return _green;
+  }
+}
+
+/// One labelled detail tile for the live-status card: an accent icon, a title
+/// with optional subtitle, and a bold value on the right.
+class _LiveDetailTile extends StatelessWidget {
+  const _LiveDetailTile({
+    required this.icon,
+    required this.accent,
+    required this.title,
+    required this.value,
+    this.subtitle,
+  });
+
+  final IconData icon;
+  final Color accent;
+  final String title;
+  final String value;
+  final String? subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FAFB),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFEEF0F4)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Icon(icon, size: 18, color: accent),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF111827),
+                  ),
+                ),
+                if (subtitle != null && subtitle!.isNotEmpty) ...[
+                  const SizedBox(height: 1),
+                  Text(
+                    subtitle!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF9CA3AF),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF374151),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

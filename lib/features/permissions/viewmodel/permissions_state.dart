@@ -9,6 +9,7 @@ enum PermissionKey {
   phone,
   photos,
   notification,
+  nearbyWifiDevices,
   usageAccess,
   ignoreBatteryOptimizations,
 }

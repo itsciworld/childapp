@@ -82,6 +82,7 @@ class PermissionsSettingsViewModel
     PermissionKey.phone: null,
     PermissionKey.location: null,
     PermissionKey.usageAccess: null,
+    PermissionKey.nearbyWifiDevices: null,
   };
 
   /// Guards against re-entrant taps while a permission flow is in progress.
@@ -140,6 +141,8 @@ class PermissionsSettingsViewModel
         return config.copyWith(dataAccess: data.copyWith(location: granted));
       case PermissionKey.usageAccess:
         return config.copyWith(dataAccess: data.copyWith(appUsage: granted));
+      case PermissionKey.nearbyWifiDevices:
+        return config.copyWith(dataAccess: data.copyWith(networkWifi: granted));
       default:
         return config;
     }
@@ -162,6 +165,7 @@ class PermissionsSettingsViewModel
     final contacts = await granted(PermissionKey.contacts);
     final phone = await granted(PermissionKey.phone);
     final location = await granted(PermissionKey.location);
+    final networkWifi = await granted(PermissionKey.nearbyWifiDevices);
 
     return config.copyWith(
       allowUsageTracking: config.allowUsageTracking || usage,
@@ -172,6 +176,7 @@ class PermissionsSettingsViewModel
         callLog: phone,
         location: location,
         appUsage: usage,
+        networkWifi: networkWifi,
       ),
     );
   }

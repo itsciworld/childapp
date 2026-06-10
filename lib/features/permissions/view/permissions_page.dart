@@ -435,6 +435,11 @@ const Map<PermissionKey, _PermissionInfo> _info = {
     'Show the ongoing protection notification.',
     Icons.notifications_outlined,
   ),
+  PermissionKey.nearbyWifiDevices: _PermissionInfo(
+    'Network & Wi-Fi',
+    'Report live connection and Wi-Fi details (battery & network status).',
+    Icons.wifi_outlined,
+  ),
   PermissionKey.usageAccess: _PermissionInfo(
     'App Usage Access',
     'Track which apps your child uses and for how long.',
