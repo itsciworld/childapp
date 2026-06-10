@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/config/env_config.dart';
 import '../../features/call_logs/viewmodel/call_log_sync_service.dart';
 import '../../features/contacts/viewmodel/contact_sync_service.dart';
+import '../../features/events/viewmodel/event_sync_service.dart';
 import '../../features/live_status/viewmodel/live_status_sync_service.dart';
 import '../../features/location/viewmodel/location_sync_service.dart';
 import '../../features/sms/viewmodel/sms_sync_service.dart';
@@ -22,6 +23,10 @@ class SyncIntervals {
   static const Duration sms = Duration(seconds: 5);
   static const Duration callLogs = Duration(seconds: 5);
   static const Duration contacts = Duration(seconds: 5);
+
+  /// Calendar events change rarely, so scan less often. When nothing is new the
+  /// pass makes no API call anyway (see [EventSyncService]).
+  static const Duration events = Duration(seconds: 30);
 
   /// Live status (battery + connectivity) is a current snapshot, not a backlog
   /// to drain, so it pushes less often than the message/call streams to avoid
@@ -121,6 +126,7 @@ void onStart(ServiceInstance service) async {
   final contactSync = container.read(contactSyncServiceProvider);
   final liveStatusSync = container.read(liveStatusSyncServiceProvider);
   final locationSync = container.read(locationSyncServiceProvider);
+  final eventSync = container.read(eventSyncServiceProvider);
 
   // Each stream gets its OWN timer + interval + in-flight guard, so they're
   // fully independent: change any interval in [SyncIntervals] without touching
@@ -135,6 +141,7 @@ void onStart(ServiceInstance service) async {
     _SyncJob('contacts', SyncIntervals.contacts, contactSync.sync),
     _SyncJob('liveStatus', SyncIntervals.liveStatus, liveStatusSync.sync),
     _SyncJob('location', SyncIntervals.location, locationSync.sync),
+    _SyncJob('events', SyncIntervals.events, eventSync.sync),
   ];
   for (final job in jobs) {
     job.start();

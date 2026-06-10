@@ -16,6 +16,8 @@ import '../../call_logs/viewmodel/call_log_state.dart';
 import '../../call_logs/viewmodel/call_log_viewmodel.dart';
 import '../../contacts/viewmodel/contact_state.dart';
 import '../../contacts/viewmodel/contact_viewmodel.dart';
+import '../../events/viewmodel/event_state.dart';
+import '../../events/viewmodel/event_viewmodel.dart';
 import '../../live_status/viewmodel/live_status_state.dart';
 import '../../live_status/viewmodel/live_status_viewmodel.dart';
 import '../../location/viewmodel/location_state.dart';
@@ -85,6 +87,7 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
       ref.read(contactViewModelProvider.notifier).refreshStatus();
       ref.read(liveStatusViewModelProvider.notifier).refreshStatus();
       ref.read(locationViewModelProvider.notifier).refreshStatus();
+      ref.read(eventViewModelProvider.notifier).refreshStatus();
     });
     // Populate the live-status card immediately, before the first 3s tick.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -169,6 +172,7 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
     final contactState = ref.watch(contactViewModelProvider);
     final liveStatusState = ref.watch(liveStatusViewModelProvider);
     final locationState = ref.watch(locationViewModelProvider);
+    final eventState = ref.watch(eventViewModelProvider);
     final logoutState = ref.watch(logoutViewModelProvider);
 
     // React to logout results: show the server message (or error) in a
@@ -309,6 +313,7 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
                     callLogState: callLogState,
                     contactState: contactState,
                     locationState: locationState,
+                    eventState: eventState,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -729,12 +734,14 @@ class _MonitoringCard extends StatelessWidget {
     required this.callLogState,
     required this.contactState,
     required this.locationState,
+    required this.eventState,
   });
 
   final SmsState state;
   final CallLogState callLogState;
   final ContactState contactState;
   final LocationState locationState;
+  final EventState eventState;
 
   static const Color _green = Color(0xFF16A34A);
   static const Color _amber = Color(0xFFD97706);
@@ -780,6 +787,16 @@ class _MonitoringCard extends StatelessWidget {
     return _SyncView(label, color, live, locationState.lastSyncedAt);
   }
 
+  _SyncView _events() {
+    final (label, color, live) = switch (eventState.status) {
+      EventSyncStatus.syncing => ('Syncing…', _amber, false),
+      EventSyncStatus.synced => ('Active', _green, true),
+      EventSyncStatus.error => ('Retrying', _amber, false),
+      EventSyncStatus.idle => ('Starting…', _grey, false),
+    };
+    return _SyncView(label, color, live, eventState.lastSyncedAt);
+  }
+
   @override
   Widget build(BuildContext context) {
     return _CardShell(
@@ -814,6 +831,13 @@ class _MonitoringCard extends StatelessWidget {
             accent: const Color(0xFFEA4335),
             title: 'Location',
             view: _location(),
+          ),
+          const SizedBox(height: 10),
+          _MonitorTile(
+            icon: Icons.event_outlined,
+            accent: const Color(0xFF0EA5E9),
+            title: 'Calendar events',
+            view: _events(),
           ),
         ],
       ),

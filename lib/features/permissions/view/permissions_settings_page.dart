@@ -284,8 +284,8 @@ class _PermissionsSettingsPageState
                       title: 'Calendar',
                       subtitle: 'Access calendar events',
                       value: data.calendar,
-                      onChanged: (val) => notifier.update(config.copyWith(
-                          dataAccess: data.copyWith(calendar: val))),
+                      onChanged: (val) => notifier.toggleDataPermission(
+                          PermissionKey.calendar, val),
                       icon: Icons.calendar_today_rounded,
                     ),
                     _buildDivider(),

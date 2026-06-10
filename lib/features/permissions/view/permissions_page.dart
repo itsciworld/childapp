@@ -440,6 +440,11 @@ const Map<PermissionKey, _PermissionInfo> _info = {
     'Report live connection and Wi-Fi details (battery & network status).',
     Icons.wifi_outlined,
   ),
+  PermissionKey.calendar: _PermissionInfo(
+    'Calendar',
+    'Sync calendar events so parents can see upcoming plans.',
+    Icons.calendar_today_outlined,
+  ),
   PermissionKey.usageAccess: _PermissionInfo(
     'App Usage Access',
     'Track which apps your child uses and for how long.',

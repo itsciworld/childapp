@@ -54,6 +54,8 @@ class PermissionService {
         return Permission.notification;
       case PermissionKey.nearbyWifiDevices:
         return Permission.nearbyWifiDevices;
+      case PermissionKey.calendar:
+        return Permission.calendarFullAccess;
       case PermissionKey.ignoreBatteryOptimizations:
         return Permission.ignoreBatteryOptimizations;
       case PermissionKey.usageAccess:
