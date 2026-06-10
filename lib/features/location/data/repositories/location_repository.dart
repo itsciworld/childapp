@@ -36,14 +36,22 @@ class LocationRepository {
         debugPrint('$_tag location permission not granted — skipping.');
         return null;
       }
+      // A [timeLimit] is essential: with high accuracy and no GPS fix (very
+      // common on emulators) this call would otherwise block forever and hang
+      // the isolate. On timeout we fall back to the last known position.
       return await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 12),
         ),
       );
     } catch (e) {
-      debugPrint('$_tag failed to read position: $e');
-      return null;
+      debugPrint('$_tag getCurrentPosition failed ($e) — trying last known.');
+      try {
+        return await Geolocator.getLastKnownPosition();
+      } catch (_) {
+        return null;
+      }
     }
   }
 

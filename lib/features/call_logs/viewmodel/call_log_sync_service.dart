@@ -26,7 +26,7 @@ class CallLogSyncService {
   /// Max calls per upload request. Like the contacts sync, we send ONE batch
   /// per pass so each request is small/fast and a big first sync drains
   /// gradually over successive passes instead of one huge upload.
-  static const int _batchSize = 150;
+  static const int _batchSize = 300;
 
   /// Runs one sync pass. Returns the server response on success, or `null`
   /// when the pass was skipped (missing identity / no calls) or failed.

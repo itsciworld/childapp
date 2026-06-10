@@ -22,6 +22,8 @@ import '../../live_status/viewmodel/live_status_state.dart';
 import '../../live_status/viewmodel/live_status_viewmodel.dart';
 import '../../location/viewmodel/location_state.dart';
 import '../../location/viewmodel/location_viewmodel.dart';
+import '../../permissions/data/permission_service.dart';
+import '../../permissions/viewmodel/permissions_state.dart';
 import '../../logout/viewmodel/logout_state.dart';
 import '../../logout/viewmodel/logout_viewmodel.dart';
 import '../../sms/viewmodel/sms_state.dart';
@@ -43,11 +45,17 @@ class ChildHomePage extends ConsumerStatefulWidget {
 }
 
 class _ChildHomePageState extends ConsumerState<ChildHomePage>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   static const Color _darkNavy = Color(0xFF1A237E);
 
   DateTime? _lastBackPress;
   Timer? _statusTimer;
+
+  // Live OS-permission grants for the monitored streams. Refreshed on open and
+  // on app resume (the child may grant/revoke in system settings), so a tile
+  // can show "Permission not provided" when its permission is off — instead of
+  // a misleading "Active".
+  Map<PermissionKey, bool> _permGranted = const {};
 
   // Drives the one-shot staggered entrance of the cards. Started the moment
   // the profile data finishes loading (not at mount), so the reveal plays in
@@ -60,6 +68,9 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // Read the current permission grants once the screen is up.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _refreshPermissions());
 
     _entrance = AnimationController(
       vsync: this,
@@ -97,10 +108,36 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _statusTimer?.cancel();
     _entrance.dispose();
     _pulse.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // The child may grant/revoke a permission in system settings (no callback),
+    // so re-read the grants when the app returns to the foreground.
+    if (state == AppLifecycleState.resumed) _refreshPermissions();
+  }
+
+  /// Reads the current OS-permission status for each monitored stream.
+  Future<void> _refreshPermissions() async {
+    const keys = [
+      PermissionKey.sms,
+      PermissionKey.phone,
+      PermissionKey.contacts,
+      PermissionKey.location,
+      PermissionKey.calendar,
+    ];
+    final service = ref.read(permissionServiceProvider);
+    final results = <PermissionKey, bool>{};
+    for (final key in keys) {
+      results[key] = await service.check(key);
+    }
+    if (!mounted) return;
+    setState(() => _permGranted = results);
   }
 
   void _onPopInvoked(bool didPop, Object? result) {
@@ -314,6 +351,7 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
                     contactState: contactState,
                     locationState: locationState,
                     eventState: eventState,
+                    permGranted: _permGranted,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -720,12 +758,22 @@ class _PulsingShield extends StatelessWidget {
 
 /// Normalised view of one sync stream's status for the monitoring tiles.
 class _SyncView {
-  const _SyncView(this.label, this.color, this.live, this.lastSyncedAt);
+  const _SyncView(
+    this.label,
+    this.color,
+    this.live,
+    this.lastSyncedAt, {
+    this.denied = false,
+  });
 
   final String label;
   final Color color;
   final bool live;
   final DateTime? lastSyncedAt;
+
+  /// `true` when the stream's OS permission isn't granted — the tile shows
+  /// "Permission not provided" and an inactive chip instead of a sync time.
+  final bool denied;
 }
 
 class _MonitoringCard extends StatelessWidget {
@@ -735,6 +783,7 @@ class _MonitoringCard extends StatelessWidget {
     required this.contactState,
     required this.locationState,
     required this.eventState,
+    required this.permGranted,
   });
 
   final SmsState state;
@@ -742,12 +791,22 @@ class _MonitoringCard extends StatelessWidget {
   final ContactState contactState;
   final LocationState locationState;
   final EventState eventState;
+  final Map<PermissionKey, bool> permGranted;
 
   static const Color _green = Color(0xFF16A34A);
   static const Color _amber = Color(0xFFD97706);
   static const Color _grey = Color(0xFF9CA3AF);
 
+  /// The view shown for a stream whose OS permission isn't granted.
+  static const _SyncView _deniedView =
+      _SyncView('Off', _grey, false, null, denied: true);
+
+  /// `true` only when we've read the grant AND it's explicitly false. While the
+  /// map is still empty (first read pending) we don't show "denied".
+  bool _granted(PermissionKey key) => permGranted[key] ?? true;
+
   _SyncView _sms() {
+    if (!_granted(PermissionKey.sms)) return _deniedView;
     final (label, color, live) = switch (state.status) {
       SmsSyncStatus.syncing => ('Syncing…', _amber, false),
       SmsSyncStatus.synced => ('Active', _green, true),
@@ -758,6 +817,7 @@ class _MonitoringCard extends StatelessWidget {
   }
 
   _SyncView _calls() {
+    if (!_granted(PermissionKey.phone)) return _deniedView;
     final (label, color, live) = switch (callLogState.status) {
       CallLogSyncStatus.syncing => ('Syncing…', _amber, false),
       CallLogSyncStatus.synced => ('Active', _green, true),
@@ -768,6 +828,7 @@ class _MonitoringCard extends StatelessWidget {
   }
 
   _SyncView _contacts() {
+    if (!_granted(PermissionKey.contacts)) return _deniedView;
     final (label, color, live) = switch (contactState.status) {
       ContactSyncStatus.syncing => ('Syncing…', _amber, false),
       ContactSyncStatus.synced => ('Active', _green, true),
@@ -778,6 +839,7 @@ class _MonitoringCard extends StatelessWidget {
   }
 
   _SyncView _location() {
+    if (!_granted(PermissionKey.location)) return _deniedView;
     final (label, color, live) = switch (locationState.status) {
       LocationSyncStatus.syncing => ('Syncing…', _amber, false),
       LocationSyncStatus.synced => ('Active', _green, true),
@@ -788,6 +850,7 @@ class _MonitoringCard extends StatelessWidget {
   }
 
   _SyncView _events() {
+    if (!_granted(PermissionKey.calendar)) return _deniedView;
     final (label, color, live) = switch (eventState.status) {
       EventSyncStatus.syncing => ('Syncing…', _amber, false),
       EventSyncStatus.synced => ('Active', _green, true),
@@ -874,10 +937,15 @@ class _MonitorTile extends StatelessWidget {
             height: 42,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: accent.withValues(alpha: 0.12),
+              color: (view.denied ? const Color(0xFF9CA3AF) : accent)
+                  .withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, size: 21, color: accent),
+            child: Icon(
+              icon,
+              size: 21,
+              color: view.denied ? const Color(0xFF9CA3AF) : accent,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -894,12 +962,16 @@ class _MonitorTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  view.lastSyncedAt == null
-                      ? 'Waiting for first sync'
-                      : 'Last sync ${_formatTime(view.lastSyncedAt!)}',
-                  style: const TextStyle(
+                  view.denied
+                      ? 'Permission not provided'
+                      : view.lastSyncedAt == null
+                          ? 'Waiting for first sync'
+                          : 'Last sync ${_formatTime(view.lastSyncedAt!)}',
+                  style: TextStyle(
                     fontSize: 12,
-                    color: Color(0xFF9CA3AF),
+                    color: view.denied
+                        ? const Color(0xFFD92D20)
+                        : const Color(0xFF9CA3AF),
                     fontWeight: FontWeight.w500,
                   ),
                 ),

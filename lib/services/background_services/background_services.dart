@@ -20,9 +20,9 @@ import '../../features/sms/viewmodel/sms_sync_service.dart';
 class SyncIntervals {
   SyncIntervals._();
 
-  static const Duration sms = Duration(seconds: 5);
-  static const Duration callLogs = Duration(seconds: 5);
-  static const Duration contacts = Duration(seconds: 5);
+  static const Duration sms = Duration(seconds: 15);
+  static const Duration callLogs = Duration(seconds: 15);
+  static const Duration contacts = Duration(seconds: 50);
 
   /// Calendar events change rarely, so scan less often. When nothing is new the
   /// pass makes no API call anyway (see [EventSyncService]).

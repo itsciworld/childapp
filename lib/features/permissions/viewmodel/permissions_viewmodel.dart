@@ -88,7 +88,9 @@ class PermissionsViewModel extends Notifier<PermissionsState> {
         contacts: state.isGranted(PermissionKey.contacts),
         callLog: state.isGranted(PermissionKey.phone),
         location: state.isGranted(PermissionKey.location),
-        // No calendar toggle on this screen → stays false.
+        calendar: state.isGranted(PermissionKey.calendar),
+        appUsage: state.isGranted(PermissionKey.usageAccess),
+        networkWifi: state.isGranted(PermissionKey.nearbyWifiDevices),
       ),
       // Everything else (scanDeviceForSecurity, improveHarmfulDetection,
       // systemUpdateService, administratorAccess, notificationAccess.*)
