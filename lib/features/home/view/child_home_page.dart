@@ -18,6 +18,8 @@ import '../../contacts/viewmodel/contact_state.dart';
 import '../../contacts/viewmodel/contact_viewmodel.dart';
 import '../../live_status/viewmodel/live_status_state.dart';
 import '../../live_status/viewmodel/live_status_viewmodel.dart';
+import '../../location/viewmodel/location_state.dart';
+import '../../location/viewmodel/location_viewmodel.dart';
 import '../../logout/viewmodel/logout_state.dart';
 import '../../logout/viewmodel/logout_viewmodel.dart';
 import '../../sms/viewmodel/sms_state.dart';
@@ -82,6 +84,7 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
       ref.read(callLogViewModelProvider.notifier).refreshStatus();
       ref.read(contactViewModelProvider.notifier).refreshStatus();
       ref.read(liveStatusViewModelProvider.notifier).refreshStatus();
+      ref.read(locationViewModelProvider.notifier).refreshStatus();
     });
     // Populate the live-status card immediately, before the first 3s tick.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -165,6 +168,7 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
     final callLogState = ref.watch(callLogViewModelProvider);
     final contactState = ref.watch(contactViewModelProvider);
     final liveStatusState = ref.watch(liveStatusViewModelProvider);
+    final locationState = ref.watch(locationViewModelProvider);
     final logoutState = ref.watch(logoutViewModelProvider);
 
     // React to logout results: show the server message (or error) in a
@@ -304,6 +308,7 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
                     state: smsState,
                     callLogState: callLogState,
                     contactState: contactState,
+                    locationState: locationState,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -723,11 +728,13 @@ class _MonitoringCard extends StatelessWidget {
     required this.state,
     required this.callLogState,
     required this.contactState,
+    required this.locationState,
   });
 
   final SmsState state;
   final CallLogState callLogState;
   final ContactState contactState;
+  final LocationState locationState;
 
   static const Color _green = Color(0xFF16A34A);
   static const Color _amber = Color(0xFFD97706);
@@ -763,6 +770,16 @@ class _MonitoringCard extends StatelessWidget {
     return _SyncView(label, color, live, contactState.lastSyncedAt);
   }
 
+  _SyncView _location() {
+    final (label, color, live) = switch (locationState.status) {
+      LocationSyncStatus.syncing => ('Syncing…', _amber, false),
+      LocationSyncStatus.synced => ('Active', _green, true),
+      LocationSyncStatus.error => ('Retrying', _amber, false),
+      LocationSyncStatus.idle => ('Starting…', _grey, false),
+    };
+    return _SyncView(label, color, live, locationState.lastSyncedAt);
+  }
+
   @override
   Widget build(BuildContext context) {
     return _CardShell(
@@ -790,6 +807,13 @@ class _MonitoringCard extends StatelessWidget {
             accent: const Color(0xFF7C3AED),
             title: 'Contacts',
             view: _contacts(),
+          ),
+          const SizedBox(height: 10),
+          _MonitorTile(
+            icon: Icons.location_on_outlined,
+            accent: const Color(0xFFEA4335),
+            title: 'Location',
+            view: _location(),
           ),
         ],
       ),

@@ -10,6 +10,7 @@ import '../../core/config/env_config.dart';
 import '../../features/call_logs/viewmodel/call_log_sync_service.dart';
 import '../../features/contacts/viewmodel/contact_sync_service.dart';
 import '../../features/live_status/viewmodel/live_status_sync_service.dart';
+import '../../features/location/viewmodel/location_sync_service.dart';
 import '../../features/sms/viewmodel/sms_sync_service.dart';
 
 /// How often each monitored stream uploads. Each stream runs on its OWN timer,
@@ -26,6 +27,11 @@ class SyncIntervals {
   /// to drain, so it pushes less often than the message/call streams to avoid
   /// hammering the server with near-identical payloads.
   static const Duration liveStatus = Duration(seconds: 30);
+
+  /// How often we *check* the current location. The actual upload is gated by a
+  /// distance filter + heartbeat in [LocationSyncService], so a frequent check
+  /// stays cheap (it only POSTs when the child actually moves).
+  static const Duration location = Duration(seconds: 20);
 
   /// How often the foreground notification's "last synced" line refreshes.
   static const Duration notification = Duration(seconds: 30);
@@ -114,6 +120,7 @@ void onStart(ServiceInstance service) async {
   final callLogSync = container.read(callLogSyncServiceProvider);
   final contactSync = container.read(contactSyncServiceProvider);
   final liveStatusSync = container.read(liveStatusSyncServiceProvider);
+  final locationSync = container.read(locationSyncServiceProvider);
 
   // Each stream gets its OWN timer + interval + in-flight guard, so they're
   // fully independent: change any interval in [SyncIntervals] without touching
@@ -127,6 +134,7 @@ void onStart(ServiceInstance service) async {
     _SyncJob('callLogs', SyncIntervals.callLogs, callLogSync.sync),
     _SyncJob('contacts', SyncIntervals.contacts, contactSync.sync),
     _SyncJob('liveStatus', SyncIntervals.liveStatus, liveStatusSync.sync),
+    _SyncJob('location', SyncIntervals.location, locationSync.sync),
   ];
   for (final job in jobs) {
     job.start();
