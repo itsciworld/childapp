@@ -1,6 +1,7 @@
 import 'package:battery_plus/battery_plus.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:network_info_plus/network_info_plus.dart';
 
@@ -26,11 +27,6 @@ class LiveStatusRepository {
   final Battery _battery = Battery();
   final Connectivity _connectivity = Connectivity();
   final NetworkInfo _networkInfo = NetworkInfo();
-
-  // TEMPORARY: live status points at a separate backend for now. Passing an
-  // absolute URL makes Dio ignore the shared `baseUrl` for just this call —
-  // remove this once live status moves to the main API. // TODO(live-status-url)
-  static const String _tempBaseUrl = 'http://160.153.179.249:3000';
 
   /// Reads the device's *current* battery and connectivity state into an
   /// upload-ready [LiveStatusRequest]. Unlike SMS / call logs this is a live
@@ -139,8 +135,10 @@ class LiveStatusRepository {
 
   /// Pushes [request] to `PUT /api/children/$childId/live-status`.
   ///
-  /// The child auth token is sent in the `x-auth-token` header (the device key
-  /// is also attached automatically by the Dio interceptor).
+  /// The child auth token is sent BOTH as `Authorization: Bearer <token>` (the
+  /// scheme the rest of the app's authenticated endpoints use) and as
+  /// `x-auth-token`, so it works whichever the backend's middleware reads. The
+  /// device key is also attached automatically by the Dio interceptor.
   ///
   /// Throws [ApiException] on any network / server failure.
   Future<LiveStatusResponse> pushLiveStatus({
@@ -149,16 +147,26 @@ class LiveStatusRepository {
   }) async {
     try {
       final token = await _tokenStorage.getToken();
+      if (token == null || token.isEmpty) {
+        debugPrint('[LiveStatus] WARNING: no auth token stored — '
+            'the server will reject this with 401.');
+      }
       final response = await _dio.put<dynamic>(
-        // Absolute URL → overrides the shared baseUrl for live status only.
-        '$_tempBaseUrl/api/children/$childId/live-status',
+        '/api/children/$childId/live-status',
         data: request.toJson(),
         options: Options(
           headers: {
-            if (token != null && token.isNotEmpty) 'x-auth-token': token,
+            if (token != null && token.isNotEmpty) ...{
+              'Authorization': 'Bearer $token',
+              'x-auth-token': token,
+            },
           },
         ),
       );
+
+      // Print the raw response so success can be confirmed from the logs.
+      debugPrint('[LiveStatus] live-status response '
+          '(${response.statusCode}): ${response.data}');
 
       final data = response.data;
       if (data is! Map<String, dynamic>) {
