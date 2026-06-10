@@ -33,6 +33,7 @@ dependencies:
   flutter_dotenv: ^6.0.1
   flexi_form_field: ^3.0.4
   device_calendar_plus: ^0.4.0
+  installed_apps: ^2.1.1
   
 dev_dependencies:
   flutter_test:

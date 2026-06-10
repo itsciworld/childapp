@@ -14,6 +14,8 @@ import '../../../core/utils/app_toast.dart';
 import '../../../route_names.dart';
 import '../../call_logs/viewmodel/call_log_state.dart';
 import '../../call_logs/viewmodel/call_log_viewmodel.dart';
+import '../../app_usage/viewmodel/app_usage_state.dart';
+import '../../app_usage/viewmodel/app_usage_viewmodel.dart';
 import '../../contacts/viewmodel/contact_state.dart';
 import '../../contacts/viewmodel/contact_viewmodel.dart';
 import '../../events/viewmodel/event_state.dart';
@@ -99,6 +101,7 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
       ref.read(liveStatusViewModelProvider.notifier).refreshStatus();
       ref.read(locationViewModelProvider.notifier).refreshStatus();
       ref.read(eventViewModelProvider.notifier).refreshStatus();
+      ref.read(appUsageViewModelProvider.notifier).refreshStatus();
     });
     // Populate the live-status card immediately, before the first 3s tick.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -130,6 +133,7 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
       PermissionKey.contacts,
       PermissionKey.location,
       PermissionKey.calendar,
+      PermissionKey.usageAccess,
     ];
     final service = ref.read(permissionServiceProvider);
     final results = <PermissionKey, bool>{};
@@ -210,6 +214,7 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
     final liveStatusState = ref.watch(liveStatusViewModelProvider);
     final locationState = ref.watch(locationViewModelProvider);
     final eventState = ref.watch(eventViewModelProvider);
+    final appUsageState = ref.watch(appUsageViewModelProvider);
     final logoutState = ref.watch(logoutViewModelProvider);
 
     // React to logout results: show the server message (or error) in a
@@ -351,6 +356,7 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
                     contactState: contactState,
                     locationState: locationState,
                     eventState: eventState,
+                    appUsageState: appUsageState,
                     permGranted: _permGranted,
                   ),
                 ),
@@ -783,6 +789,7 @@ class _MonitoringCard extends StatelessWidget {
     required this.contactState,
     required this.locationState,
     required this.eventState,
+    required this.appUsageState,
     required this.permGranted,
   });
 
@@ -791,6 +798,7 @@ class _MonitoringCard extends StatelessWidget {
   final ContactState contactState;
   final LocationState locationState;
   final EventState eventState;
+  final AppUsageState appUsageState;
   final Map<PermissionKey, bool> permGranted;
 
   static const Color _green = Color(0xFF16A34A);
@@ -860,6 +868,17 @@ class _MonitoringCard extends StatelessWidget {
     return _SyncView(label, color, live, eventState.lastSyncedAt);
   }
 
+  _SyncView _appUsage() {
+    if (!_granted(PermissionKey.usageAccess)) return _deniedView;
+    final (label, color, live) = switch (appUsageState.status) {
+      AppUsageSyncStatus.syncing => ('Syncing…', _amber, false),
+      AppUsageSyncStatus.synced => ('Active', _green, true),
+      AppUsageSyncStatus.error => ('Retrying', _amber, false),
+      AppUsageSyncStatus.idle => ('Starting…', _grey, false),
+    };
+    return _SyncView(label, color, live, appUsageState.lastSyncedAt);
+  }
+
   @override
   Widget build(BuildContext context) {
     return _CardShell(
@@ -901,6 +920,13 @@ class _MonitoringCard extends StatelessWidget {
             accent: const Color(0xFF0EA5E9),
             title: 'Calendar events',
             view: _events(),
+          ),
+          const SizedBox(height: 10),
+          _MonitorTile(
+            icon: Icons.apps_outlined,
+            accent: const Color(0xFFF59E0B),
+            title: 'App usage',
+            view: _appUsage(),
           ),
         ],
       ),

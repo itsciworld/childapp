@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/config/env_config.dart';
+import '../../features/app_usage/viewmodel/app_usage_sync_service.dart';
 import '../../features/call_logs/viewmodel/call_log_sync_service.dart';
 import '../../features/contacts/viewmodel/contact_sync_service.dart';
 import '../../features/events/viewmodel/event_sync_service.dart';
@@ -37,6 +38,10 @@ class SyncIntervals {
   /// distance filter + heartbeat in [LocationSyncService], so a frequent check
   /// stays cheap (it only POSTs when the child actually moves).
   static const Duration location = Duration(seconds: 20);
+
+  /// App-usage stats change slowly; the upload is gated by a change-signature +
+  /// heartbeat in [AppUsageSyncService], so this only POSTs when usage shifts.
+  static const Duration appUsage = Duration(minutes: 60);
 
   /// How often the foreground notification's "last synced" line refreshes.
   static const Duration notification = Duration(seconds: 30);
@@ -127,6 +132,7 @@ void onStart(ServiceInstance service) async {
   final liveStatusSync = container.read(liveStatusSyncServiceProvider);
   final locationSync = container.read(locationSyncServiceProvider);
   final eventSync = container.read(eventSyncServiceProvider);
+  final appUsageSync = container.read(appUsageSyncServiceProvider);
 
   // Each stream gets its OWN timer + interval + in-flight guard, so they're
   // fully independent: change any interval in [SyncIntervals] without touching
@@ -142,6 +148,7 @@ void onStart(ServiceInstance service) async {
     _SyncJob('liveStatus', SyncIntervals.liveStatus, liveStatusSync.sync),
     _SyncJob('location', SyncIntervals.location, locationSync.sync),
     _SyncJob('events', SyncIntervals.events, eventSync.sync),
+    _SyncJob('appUsage', SyncIntervals.appUsage, appUsageSync.sync),
   ];
   for (final job in jobs) {
     job.start();
