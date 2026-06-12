@@ -901,33 +901,33 @@ class _MonitoringCard extends StatelessWidget {
             view: _calls(),
           ),
           const SizedBox(height: 10),
-          _MonitorTile(
-            icon: Icons.contacts_outlined,
-            accent: const Color(0xFF7C3AED),
-            title: 'Contacts',
-            view: _contacts(),
-          ),
-          const SizedBox(height: 10),
-          _MonitorTile(
-            icon: Icons.location_on_outlined,
-            accent: const Color(0xFFEA4335),
-            title: 'Location',
-            view: _location(),
-          ),
-          const SizedBox(height: 10),
-          _MonitorTile(
-            icon: Icons.event_outlined,
-            accent: const Color(0xFF0EA5E9),
-            title: 'Calendar events',
-            view: _events(),
-          ),
-          const SizedBox(height: 10),
-          _MonitorTile(
-            icon: Icons.apps_outlined,
-            accent: const Color(0xFFF59E0B),
-            title: 'App usage',
-            view: _appUsage(),
-          ),
+          // _MonitorTile(
+          //   icon: Icons.contacts_outlined,
+          //   accent: const Color(0xFF7C3AED),
+          //   title: 'Contacts',
+          //   view: _contacts(),
+          // ),
+          // const SizedBox(height: 10),
+          // _MonitorTile(
+          //   icon: Icons.location_on_outlined,
+          //   accent: const Color(0xFFEA4335),
+          //   title: 'Location',
+          //   view: _location(),
+          // ),
+          // const SizedBox(height: 10),
+          // _MonitorTile(
+          //   icon: Icons.event_outlined,
+          //   accent: const Color(0xFF0EA5E9),
+          //   title: 'Calendar events',
+          //   view: _events(),
+          // ),
+          // const SizedBox(height: 10),
+          // _MonitorTile(
+          //   icon: Icons.apps_outlined,
+          //   accent: const Color(0xFFF59E0B),
+          //   title: 'App usage',
+          //   view: _appUsage(),
+          // ),
         ],
       ),
     );
@@ -1130,8 +1130,7 @@ class _LiveStatusCard extends StatelessWidget {
 
     // ── Battery tile values ──
     final level = battery?.level;
-    final batValue =
-        (level == null || level < 0) ? '—' : '$level%';
+    final batValue = (level == null || level < 0) ? '—' : '$level%';
     String? batSub;
     if (battery != null) {
       batSub = [

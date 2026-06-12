@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/network/dio_client.dart';
@@ -27,11 +29,21 @@ class ContactRepository {
   /// phone number instead of a time watermark: any number already in
   /// [alreadySynced] is skipped, so only newly-added numbers are returned. A
   /// contact with no new numbers is omitted entirely.
-  /// Returns an empty list when there is nothing new. Assumes the
-  /// `READ_CONTACTS` permission has already been granted.
+  /// Returns an empty list when there is nothing new — or when the child has
+  /// not granted `READ_CONTACTS`, in which case the pass is skipped quietly
+  /// instead of letting `flutter_contacts` throw a permission-denied
+  /// `PlatformException`.
   Future<List<ContactItem>> readDeviceContacts({
     required Set<String> alreadySynced,
   }) async {
+    // Gate on the permission before touching the plugin: without it,
+    // `FlutterContacts.getAll` throws a PlatformException (permission denial),
+    // which the caller would log as a noisy "unexpected error" stack trace.
+    if (!await Permission.contacts.isGranted) {
+      debugPrint('[ContactRepository] READ_CONTACTS not granted — skipping.');
+      return const [];
+    }
+
     final contacts = await FlutterContacts.getAll(
       properties: {ContactProperty.phone},
     );

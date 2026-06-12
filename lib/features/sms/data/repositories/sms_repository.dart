@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_sms_inbox/flutter_sms_inbox.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/network/dio_client.dart';
@@ -30,12 +32,21 @@ class SmsRepository {
   ///   recent [fetchLimit] messages are returned, so the very first upload
   ///   doesn't dump the entire history.
   ///
-  /// Returns an empty list when there is nothing new. Assumes the `READ_SMS`
-  /// permission has already been granted by the permissions flow.
+  /// Returns an empty list when there is nothing new — or when the child has
+  /// not granted `READ_SMS`, in which case the pass is skipped quietly instead
+  /// of letting `flutter_sms_inbox` throw a permission-denied error.
   Future<List<SmsEntry>> readDeviceSms({
     DateTime? since,
     int fetchLimit = 500,
   }) async {
+    // Gate on the permission before touching the plugin: without it, the SMS
+    // query throws / returns a permission error that the caller would log as a
+    // noisy "unexpected error" stack trace.
+    if (!await Permission.sms.isGranted) {
+      debugPrint('[SmsRepository] READ_SMS not granted — skipping.');
+      return const [];
+    }
+
     final messages = await _query.querySms(
       kinds: const [SmsQueryKind.inbox, SmsQueryKind.sent],
       count: fetchLimit,

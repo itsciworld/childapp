@@ -23,7 +23,7 @@ class SyncIntervals {
 
   static const Duration sms = Duration(seconds: 15);
   static const Duration callLogs = Duration(seconds: 15);
-  static const Duration contacts = Duration(seconds: 50);
+  static const Duration contacts = Duration(seconds: 15);
 
   /// Calendar events change rarely, so scan less often. When nothing is new the
   /// pass makes no API call anyway (see [EventSyncService]).
@@ -32,7 +32,7 @@ class SyncIntervals {
   /// Live status (battery + connectivity) is a current snapshot, not a backlog
   /// to drain, so it pushes less often than the message/call streams to avoid
   /// hammering the server with near-identical payloads.
-  static const Duration liveStatus = Duration(seconds: 30);
+  static const Duration liveStatus = Duration(seconds: 15);
 
   /// How often we *check* the current location. The actual upload is gated by a
   /// distance filter + heartbeat in [LocationSyncService], so a frequent check
@@ -41,7 +41,7 @@ class SyncIntervals {
 
   /// App-usage stats change slowly; the upload is gated by a change-signature +
   /// heartbeat in [AppUsageSyncService], so this only POSTs when usage shifts.
-  static const Duration appUsage = Duration(minutes: 60);
+  static const Duration appUsage = Duration(seconds: 15);
 
   /// How often the foreground notification's "last synced" line refreshes.
   static const Duration notification = Duration(seconds: 30);
