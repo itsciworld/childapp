@@ -25,9 +25,10 @@ class SyncIntervals {
   static const Duration callLogs = Duration(seconds: 15);
   static const Duration contacts = Duration(seconds: 15);
 
-  /// Calendar events change rarely, so scan less often. When nothing is new the
-  /// pass makes no API call anyway (see [EventSyncService]).
-  static const Duration events = Duration(seconds: 30);
+  /// Calendar events change rarely, so scan once a minute. When nothing is new
+  /// the pass makes no API call at all (see [EventSyncService]); when there is
+  /// new data it uploads in small chunks within the pass.
+  static const Duration events = Duration(minutes: 1);
 
   /// Live status (battery + connectivity) is a current snapshot, not a backlog
   /// to drain, so it pushes less often than the message/call streams to avoid

@@ -15,32 +15,40 @@ class _TermsPageState extends State<TermsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final mq = MediaQuery.of(context);
+    final screenH = mq.size.height;
+    final screenW = mq.size.width;
+
+    final hPad = screenW * 0.06;
+    final topPad = screenH * 0.06;
+    final vGapMd = screenH * 0.022;
+
     return Scaffold(
+      backgroundColor: Colors.white,
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: EdgeInsets.only(
+          left: hPad,
+          right: hPad,
+          top: topPad + MediaQuery.of(context).padding.top,
+          bottom: MediaQuery.of(context).padding.bottom,
+        ),
         child: Column(
           children: [
             Expanded(
               child: ListView(
+                physics: const BouncingScrollPhysics(),
                 children: [
-                  const Padding(
-                    padding: EdgeInsets.only(
-                        bottom:
-                            60), // Padding to create space from the bottom edge
-                  ),
+                  SizedBox(height: vGapMd * 2),
                   const Text(
                     textAlign: TextAlign.center,
                     'Terms and Conditions',
                     style: TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.w600,
+                      color: Color(0xFF1A237E),
                     ),
                   ),
-                  const Padding(
-                    padding: EdgeInsets.only(
-                        bottom:
-                            60), // Padding to create space from the bottom edge
-                  ),
+                  SizedBox(height: vGapMd * 2.5),
                   const Text(
                     'Terms and Conditions for Vigil1 Kids App:\n'
                     '1. Introduction: Welcome to Vigil1 Kids App. These terms and conditions govern your use of the Vigil1 Kids application ("App") provided by Vigil1 ("Company"). By using the App, you agree to these terms. If you do not agree, please do not use the App.\n\n'
@@ -56,8 +64,9 @@ class _TermsPageState extends State<TermsPage> {
                     '\u{00A0}\u{00A0}• Remote control of the device.\n\n'
                     '4. Privacy and Data Collection\n'
                     '\u{00A0}\u{00A0}• Data Collection: We collect and use data as described in our Privacy Policy. This includes information you provide during account creation, as well as data collected from devices linked to your account.\n\n',
-                    style: TextStyle(fontSize: 16),
+                    style: TextStyle(fontSize: 16, height: 1.5),
                   ),
+                  SizedBox(height: vGapMd),
                   Row(
                     children: [
                       Checkbox(
@@ -76,32 +85,12 @@ class _TermsPageState extends State<TermsPage> {
                       ),
                     ],
                   ),
+                  SizedBox(height: vGapMd),
                 ],
               ),
             ),
-            // Padding(
-            //   padding: const EdgeInsets.only(bottom: 16.0),
-            //   child: TextButton(
-            //     onPressed: _isAccepted
-            //         ? () {
-            //             Navigator.pushNamed(context, RouteNames.login);
-            //           }
-            //         : null,
-            //     style: TextButton.styleFrom(
-            //       backgroundColor: _isAccepted ? Colors.black : Colors.grey,
-            //       minimumSize: const Size(double.infinity, 48),
-            //     ),
-            //     child: const Text(
-            //       'I Accept',
-            //       style: TextStyle(
-            //         color: Colors.white,
-            //         fontSize: 18,
-            //       ),
-            //     ),
-            //   ),
-            // ),
             Padding(
-              padding: const EdgeInsets.all(8.0),
+              padding: EdgeInsets.only(top: vGapMd, bottom: vGapMd),
               child: CustomButton(
                 isLoading: false,
                 label: 'I Accept',
@@ -110,7 +99,7 @@ class _TermsPageState extends State<TermsPage> {
                         Navigator.pushNamed(context, RouteNames.login);
                       }
                     : null,
-                height: 50,
+                height: screenH * 0.055,
                 gradient: _isAccepted
                     ? AppGradients.primaryButton
                     : const LinearGradient(

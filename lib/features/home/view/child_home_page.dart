@@ -901,12 +901,12 @@ class _MonitoringCard extends StatelessWidget {
             view: _calls(),
           ),
           const SizedBox(height: 10),
-          // _MonitorTile(
-          //   icon: Icons.contacts_outlined,
-          //   accent: const Color(0xFF7C3AED),
-          //   title: 'Contacts',
-          //   view: _contacts(),
-          // ),
+          _MonitorTile(
+            icon: Icons.contacts_outlined,
+            accent: const Color(0xFF7C3AED),
+            title: 'Contacts',
+            view: _contacts(),
+          ),
           // const SizedBox(height: 10),
           // _MonitorTile(
           //   icon: Icons.location_on_outlined,

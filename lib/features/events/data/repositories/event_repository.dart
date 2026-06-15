@@ -21,8 +21,8 @@ class EventRepository {
 
   static const String _tag = '[EventRepo]';
 
-  /// How far back / forward to scan for events.
-  static const Duration _pastWindow = Duration(days: 365);
+  /// How far forward to scan for events. We never look into the past — only
+  /// events dated from the start of today onward are uploaded.
   static const Duration _futureWindow = Duration(days: 365);
 
   /// Reads device calendar events and maps them into upload-ready [EventItem]s,
@@ -45,11 +45,13 @@ class EventRepository {
       if (calendars.isEmpty) return const [];
 
       final now = DateTime.now();
-      final start = now.subtract(_pastWindow);
+      // Only today and the future — start the scan at midnight today and skip
+      // anything that started before it.
+      final startOfToday = DateTime(now.year, now.month, now.day);
       final end = now.add(_futureWindow);
 
       final events = await _calendar.listEvents(
-        start,
+        startOfToday,
         end,
         calendarIds: calendars.map((c) => c.id).toList(),
       );
@@ -57,6 +59,9 @@ class EventRepository {
       final items = <EventItem>[];
       final seenThisPass = <String>{};
       for (final e in events) {
+        // Belt-and-braces: the plugin can still return an event that overlaps
+        // the window but started earlier (e.g. a multi-day event) — skip it.
+        if (e.startDate.isBefore(startOfToday)) continue;
         final id = e.instanceId.isNotEmpty ? e.instanceId : e.eventId;
         if (id.isEmpty) continue;
         if (alreadySynced.contains(id)) continue;
@@ -102,6 +107,11 @@ class EventRepository {
           'events': events.map((e) => e.toJson()).toList(),
         },
         options: Options(
+          // Give the insert a generous window — a chunk is small, but a busy
+          // server can still take a while to ack, and we'd rather wait than
+          // abort and re-send (which the chunked sync would do next pass).
+          sendTimeout: const Duration(seconds: 60),
+          receiveTimeout: const Duration(seconds: 60),
           headers: {
             if (deviceKey != null && deviceKey.isNotEmpty)
               'x-device-key': deviceKey,

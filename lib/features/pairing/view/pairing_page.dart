@@ -97,72 +97,73 @@ class _PairingPageState extends ConsumerState<PairingPage> {
     final state = ref.watch(pairingViewModelProvider);
 
     return Scaffold(
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            const SizedBox(height: 40),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: IconButton(
-                onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.arrow_back_ios),
-              ),
-            ),
-            const Text(
-              'Link Parents Device',
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 40),
-            const Text(
-              'Enter Code',
-              style: TextStyle(
-                color: Colors.blue,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'A unique 6-digit code is displayed on your Vigil1 Parental App. \n Enter the code to pair the two devices.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16, color: Colors.grey),
-            ),
-            const SizedBox(height: 40),
-            _buildCodeInput(),
-            const Spacer(),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 16.0),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: (!_isCodeComplete || state.isLoading)
-                      ? null
-                      : _onSubmit,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black,
-                    disabledBackgroundColor: Colors.grey,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  child: state.isLoading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : const Text(
-                          'Continue',
-                          style:
-                              TextStyle(color: Colors.white, fontSize: 18),
-                        ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.arrow_back_ios),
                 ),
               ),
-            ),
-          ],
+              const Text(
+                'Link Parents Device',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 40),
+              const Text(
+                'Enter Code',
+                style: TextStyle(
+                  color: Colors.blue,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'A unique 6-digit code is displayed on your Vigil1 Parental App. \n Enter the code to pair the two devices.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 16, color: Colors.grey),
+              ),
+              const SizedBox(height: 40),
+              _buildCodeInput(),
+              const Spacer(),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16.0),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: (!_isCodeComplete || state.isLoading)
+                        ? null
+                        : _onSubmit,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.black,
+                      disabledBackgroundColor: Colors.grey,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: state.isLoading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Text(
+                            'Continue',
+                            style: TextStyle(color: Colors.white, fontSize: 18),
+                          ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

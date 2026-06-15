@@ -21,12 +21,17 @@ class EventSyncService {
 
   static const String _tag = '[EventSync]';
 
-  /// Max events per upload request — one batch per pass, like contacts, so a
-  /// large first sync drains gradually instead of one huge request.
-  static const int _batchSize = 100;
+  /// Events per upload request. Kept small so each POST is light and answers
+  /// well within the network timeout — a big first sync drains as several quick
+  /// chunks instead of one heavy request that stalls and times out.
+  static const int _batchSize = 20;
 
-  /// Runs one sync pass. Returns the server response on success, or `null` when
-  /// the pass was skipped (no identity / no new events) or failed.
+  /// Runs one sync pass. Reads the device's new (not-yet-uploaded) events and,
+  /// if there are any, uploads them in [_batchSize] chunks — marking each chunk
+  /// as synced the instant it lands, so a failure part-way through never
+  /// re-sends what already arrived. Returns the last server response, or `null`
+  /// when the pass was skipped (no identity / no new events) or the first chunk
+  /// failed.
   Future<StoreEventsResponse?> sync() async {
     try {
       final identity = await _identityStorage.read();
@@ -44,27 +49,40 @@ class EventSyncService {
         return null;
       }
 
-      // Upload only ONE batch per pass; the recurring loop drains the rest.
-      final batch =
-          events.length > _batchSize ? events.sublist(0, _batchSize) : events;
-      final remaining = events.length - batch.length;
+      StoreEventsResponse? lastResponse;
+      var uploaded = 0;
+      for (var i = 0; i < events.length; i += _batchSize) {
+        final end =
+            (i + _batchSize < events.length) ? i + _batchSize : events.length;
+        final chunk = events.sublist(i, end);
 
-      final response = await _repository.storeEvents(
-        batch,
-        childId: identity.childId!,
-        parentId: identity.parentId!,
-      );
+        try {
+          lastResponse = await _repository.storeEvents(
+            chunk,
+            childId: identity.childId!,
+            parentId: identity.parentId!,
+          );
+        } on ApiException catch (e) {
+          // Stop here; the unsent events keep their ids unmarked and resume on
+          // the next pass. Already-sent chunks above stay marked → no re-send.
+          debugPrint('$_tag chunk failed after $uploaded/${events.length} '
+              '(resume next pass): ${e.message}');
+          await _syncStorage.setLastRunAt(DateTime.now());
+          return lastResponse;
+        }
 
-      // Mark this batch's ids as synced so the next pass skips them.
-      await _syncStorage.addSyncedKeys(batch.map((e) => e.id));
+        // Mark this chunk's ids as synced the moment it succeeds, so they are
+        // never sent again — even if a later chunk fails.
+        await _syncStorage.addSyncedKeys(chunk.map((e) => e.id));
+        uploaded += chunk.length;
+        debugPrint('$_tag chunk ok: $uploaded/${events.length} uploaded '
+            '→ saved ${lastResponse.saved}, dupes ${lastResponse.duplicates}');
+      }
+
       await _syncStorage.setLastRunAt(DateTime.now());
-
-      debugPrint(
-        '$_tag posted ${batch.length} new events ($remaining remaining) → '
-        'saved ${response.saved}, duplicates ${response.duplicates}, '
-        'total ${response.total} ("${response.message}")',
-      );
-      return response;
+      debugPrint('$_tag done — posted $uploaded new events in chunks of '
+          '$_batchSize ("${lastResponse?.message}").');
+      return lastResponse;
     } on ApiException catch (e) {
       debugPrint('$_tag upload failed (will resume next pass): ${e.message}');
       return null;
