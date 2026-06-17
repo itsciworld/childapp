@@ -21,9 +21,10 @@ class EventRepository {
 
   static const String _tag = '[EventRepo]';
 
-  /// How far back / forward to scan for events.
-  static const Duration _pastWindow = Duration(days: 365);
-  static const Duration _futureWindow = Duration(days: 365);
+  /// How far forward to scan for events, in calendar months. We never scan into
+  /// the past — only today's events and those within the next [_futureMonths]
+  /// months are uploaded.
+  static const int _futureMonths = 2;
 
   /// Reads device calendar events and maps them into upload-ready [EventItem]s,
   /// skipping any whose id is in [alreadySynced]. A new id de-dupes within the
@@ -45,11 +46,16 @@ class EventRepository {
       if (calendars.isEmpty) return const [];
 
       final now = DateTime.now();
-      final start = now.subtract(_pastWindow);
-      final end = now.add(_futureWindow);
+      // Start of TODAY (local midnight) — events that ended before today are
+      // never uploaded; only today's and future events go up.
+      final startOfToday = DateTime(now.year, now.month, now.day);
+      // End of the window: exactly [_futureMonths] months from today. DateTime
+      // normalises month overflow (e.g. month 13 → next January).
+      final end = DateTime(now.year, now.month + _futureMonths, now.day,
+          23, 59, 59);
 
       final events = await _calendar.listEvents(
-        start,
+        startOfToday,
         end,
         calendarIds: calendars.map((c) => c.id).toList(),
       );
@@ -59,6 +65,13 @@ class EventRepository {
       for (final e in events) {
         final id = e.instanceId.isNotEmpty ? e.instanceId : e.eventId;
         if (id.isEmpty) continue;
+        // Guard against past events the query window can still return (e.g. a
+        // multi-day event that began earlier but overlaps today): only keep
+        // events that end today or later.
+        if (e.endDate.isBefore(startOfToday)) continue;
+        // Guard the upper bound too: drop anything starting beyond the 2-month
+        // window.
+        if (e.startDate.isAfter(end)) continue;
         if (alreadySynced.contains(id)) continue;
         if (!seenThisPass.add(id)) continue;
         items.add(

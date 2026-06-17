@@ -55,24 +55,49 @@ class LocationRepository {
     }
   }
 
-  /// Reverse-geocodes [lat]/[lng] into a short address like `Lahore, Pakistan`.
+  /// Reverse-geocodes [lat]/[lng] into the FULL street address, e.g.
+  /// `123, Mall Road, Gulberg, Lahore, Punjab 54000, Pakistan` — building number
+  /// + street, area, city, state, postal code and country, in that order.
   /// Best-effort: returns `null` if the platform geocoder fails or is offline.
   Future<String?> reverseGeocode(double lat, double lng) async {
     try {
       final placemarks = await placemarkFromCoordinates(lat, lng);
       if (placemarks.isEmpty) return null;
       final p = placemarks.first;
-      // Prefer "City, Country"; fall back through the finer fields when a city
-      // isn't resolved.
-      final parts = <String>[
-        if ((p.locality ?? '').isNotEmpty)
-          p.locality!
-        else if ((p.subAdministrativeArea ?? '').isNotEmpty)
-          p.subAdministrativeArea!
-        else if ((p.administrativeArea ?? '').isNotEmpty)
-          p.administrativeArea!,
-        if ((p.country ?? '').isNotEmpty) p.country!,
+      // Build the address from fine → coarse. We DON'T drop the street-level
+      // fields any more, so the full address is sent instead of only the city.
+      final ordered = <String?>[
+        p.subThoroughfare, // building / house number
+        p.thoroughfare, // street name
+        p.subLocality, // neighbourhood / area
+        p.locality, // city
+        p.subAdministrativeArea, // district
+        p.administrativeArea, // state / province
+        p.postalCode, // ZIP / postal code
+        p.country,
       ];
+      // Some platforms also expose a ready-made `street` line; fall back to it
+      // when the granular thoroughfare fields are empty.
+      if ((p.thoroughfare ?? '').isEmpty &&
+          (p.subThoroughfare ?? '').isEmpty &&
+          (p.street ?? '').isNotEmpty) {
+        ordered.insert(0, p.street);
+      }
+
+      final parts = <String>[];
+      for (final raw in ordered) {
+        final v = raw?.trim() ?? '';
+        if (v.isEmpty) continue;
+        // Skip near-duplicate fields (e.g. `street` already containing the
+        // thoroughfare, or locality == subAdministrativeArea).
+        final dup = parts.any((existing) =>
+            existing.toLowerCase() == v.toLowerCase() ||
+            existing.toLowerCase().contains(v.toLowerCase()) ||
+            v.toLowerCase().contains(existing.toLowerCase()));
+        if (dup) continue;
+        parts.add(v);
+      }
+
       final address = parts.join(', ');
       return address.isEmpty ? null : address;
     } catch (e) {

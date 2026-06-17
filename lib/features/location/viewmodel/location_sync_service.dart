@@ -27,11 +27,11 @@ class LocationSyncService {
   static const String _tag = '[LocationSync]';
 
   /// Don't upload again until the child has moved at least this far (metres).
-  static const double _minDistanceMeters = 50;
+  static const double _minDistanceMeters = 150;
 
   /// ...but always upload at least this often, even when stationary, so the
   /// backend knows the device is still alive / parked.
-  static const Duration _heartbeat = Duration(minutes: 5);
+  static const Duration _heartbeat = Duration(minutes: 15);
 
   /// Runs one pass. Returns the server response when a fix was uploaded, or
   /// `null` when the pass was skipped (no identity / no fix / didn't move) or

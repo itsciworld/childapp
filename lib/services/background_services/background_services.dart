@@ -28,21 +28,21 @@ class SyncIntervals {
 
   /// Calendar events change , so scan less often. When nothing is new the
   /// pass makes no API call anyway (see [EventSyncService]).
-  static const Duration events = Duration(seconds: 30);
+  static const Duration events = Duration(seconds: 100);
 
   /// Live status (battery + connectivity) is a current snapshot, not a backlog
   /// to drain, so it pushes less often than the message/call streams to avoid
   /// hammering the server with near-identical payloads.
-  static const Duration liveStatus = Duration(seconds: 15);
+  static const Duration liveStatus = Duration(seconds: 55);
 
   /// How often we *check* the current location. The actual upload is gated by a
   /// distance filter + heartbeat in [LocationSyncService], so a frequent check
   /// stays cheap (it only POSTs when the child actually moves).
-  static const Duration location = Duration(seconds: 20);
+  static const Duration location = Duration(seconds: 60);
 
   /// App-usage stats change slowly; the upload is gated by a change-signature +
   /// heartbeat in [AppUsageSyncService], so this only POSTs when usage shifts.
-  static const Duration appUsage = Duration(seconds: 15);
+  static const Duration appUsage = Duration(seconds: 85);
 
   /// Gallery photos are uploaded in small batches (binary upload + metadata
   /// store) and only when new ones appear, so this scans on a relaxed cadence;
