@@ -26,7 +26,7 @@ class SyncIntervals {
   static const Duration callLogs = Duration(seconds: 15);
   static const Duration contacts = Duration(seconds: 15);
 
-  /// Calendar events change rarely, so scan less often. When nothing is new the
+  /// Calendar events change , so scan less often. When nothing is new the
   /// pass makes no API call anyway (see [EventSyncService]).
   static const Duration events = Duration(seconds: 30);
 
