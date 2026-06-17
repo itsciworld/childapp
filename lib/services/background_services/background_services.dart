@@ -60,7 +60,7 @@ class BackgroundService {
   static Future<void> initializeService() async {
     final service = FlutterBackgroundService();
 
-    // 1. Setup Local Notifications for Android Foreground Service
+    // Foreground Service
     const AndroidNotificationChannel channel = AndroidNotificationChannel(
       notificationChannelId,
       'Vigil Service',
