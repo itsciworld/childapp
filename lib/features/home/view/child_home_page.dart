@@ -20,6 +20,8 @@ import '../../contacts/viewmodel/contact_state.dart';
 import '../../contacts/viewmodel/contact_viewmodel.dart';
 import '../../events/viewmodel/event_state.dart';
 import '../../events/viewmodel/event_viewmodel.dart';
+import '../../gallery/viewmodel/gallery_state.dart';
+import '../../gallery/viewmodel/gallery_viewmodel.dart';
 import '../../live_status/viewmodel/live_status_state.dart';
 import '../../live_status/viewmodel/live_status_viewmodel.dart';
 import '../../location/viewmodel/location_state.dart';
@@ -102,6 +104,7 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
       ref.read(locationViewModelProvider.notifier).refreshStatus();
       ref.read(eventViewModelProvider.notifier).refreshStatus();
       ref.read(appUsageViewModelProvider.notifier).refreshStatus();
+      ref.read(galleryViewModelProvider.notifier).refreshStatus();
     });
     // Populate the live-status card immediately, before the first 3s tick.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -134,6 +137,7 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
       PermissionKey.location,
       PermissionKey.calendar,
       PermissionKey.usageAccess,
+      PermissionKey.photos,
     ];
     final service = ref.read(permissionServiceProvider);
     final results = <PermissionKey, bool>{};
@@ -215,6 +219,7 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
     final locationState = ref.watch(locationViewModelProvider);
     final eventState = ref.watch(eventViewModelProvider);
     final appUsageState = ref.watch(appUsageViewModelProvider);
+    final galleryState = ref.watch(galleryViewModelProvider);
     final logoutState = ref.watch(logoutViewModelProvider);
 
     // React to logout results: show the server message (or error) in a
@@ -357,6 +362,7 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
                     locationState: locationState,
                     eventState: eventState,
                     appUsageState: appUsageState,
+                    galleryState: galleryState,
                     permGranted: _permGranted,
                   ),
                 ),
@@ -790,6 +796,7 @@ class _MonitoringCard extends StatelessWidget {
     required this.locationState,
     required this.eventState,
     required this.appUsageState,
+    required this.galleryState,
     required this.permGranted,
   });
 
@@ -799,6 +806,7 @@ class _MonitoringCard extends StatelessWidget {
   final LocationState locationState;
   final EventState eventState;
   final AppUsageState appUsageState;
+  final GalleryState galleryState;
   final Map<PermissionKey, bool> permGranted;
 
   static const Color _green = Color(0xFF16A34A);
@@ -879,6 +887,17 @@ class _MonitoringCard extends StatelessWidget {
     return _SyncView(label, color, live, appUsageState.lastSyncedAt);
   }
 
+  _SyncView _gallery() {
+    if (!_granted(PermissionKey.photos)) return _deniedView;
+    final (label, color, live) = switch (galleryState.status) {
+      GallerySyncStatus.syncing => ('Syncing…', _amber, false),
+      GallerySyncStatus.synced => ('Active', _green, true),
+      GallerySyncStatus.error => ('Retrying', _amber, false),
+      GallerySyncStatus.idle => ('Starting…', _grey, false),
+    };
+    return _SyncView(label, color, live, galleryState.lastSyncedAt);
+  }
+
   @override
   Widget build(BuildContext context) {
     return _CardShell(
@@ -901,13 +920,20 @@ class _MonitoringCard extends StatelessWidget {
             view: _calls(),
           ),
           const SizedBox(height: 10),
+          _MonitorTile(
+            icon: Icons.contacts_outlined,
+            accent: const Color(0xFF7C3AED),
+            title: 'Contacts',
+            view: _contacts(),
+          ),
+          const SizedBox(height: 10),
           // _MonitorTile(
-          //   icon: Icons.contacts_outlined,
-          //   accent: const Color(0xFF7C3AED),
-          //   title: 'Contacts',
-          //   view: _contacts(),
+          //   icon: Icons.photo_library_outlined,
+          //   accent: const Color(0xFFEC4899),
+          //   title: 'Photos',
+          //   view: _gallery(),
           // ),
-          // const SizedBox(height: 10),
+          const SizedBox(height: 10),
           // _MonitorTile(
           //   icon: Icons.location_on_outlined,
           //   accent: const Color(0xFFEA4335),

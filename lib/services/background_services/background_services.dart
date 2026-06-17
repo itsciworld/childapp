@@ -11,6 +11,7 @@ import '../../features/app_usage/viewmodel/app_usage_sync_service.dart';
 import '../../features/call_logs/viewmodel/call_log_sync_service.dart';
 import '../../features/contacts/viewmodel/contact_sync_service.dart';
 import '../../features/events/viewmodel/event_sync_service.dart';
+import '../../features/gallery/viewmodel/gallery_sync_service.dart';
 import '../../features/live_status/viewmodel/live_status_sync_service.dart';
 import '../../features/location/viewmodel/location_sync_service.dart';
 import '../../features/sms/viewmodel/sms_sync_service.dart';
@@ -42,6 +43,11 @@ class SyncIntervals {
   /// App-usage stats change slowly; the upload is gated by a change-signature +
   /// heartbeat in [AppUsageSyncService], so this only POSTs when usage shifts.
   static const Duration appUsage = Duration(seconds: 15);
+
+  /// Gallery photos are uploaded in small batches (binary upload + metadata
+  /// store) and only when new ones appear, so this scans on a relaxed cadence;
+  /// a large backlog is drained a few photos per pass over time.
+  static const Duration gallery = Duration(seconds: 30);
 
   /// How often the foreground notification's "last synced" line refreshes.
   static const Duration notification = Duration(seconds: 30);
@@ -133,6 +139,7 @@ void onStart(ServiceInstance service) async {
   final locationSync = container.read(locationSyncServiceProvider);
   final eventSync = container.read(eventSyncServiceProvider);
   final appUsageSync = container.read(appUsageSyncServiceProvider);
+  final gallerySync = container.read(gallerySyncServiceProvider);
 
   // Each stream gets its OWN timer + interval + in-flight guard, so they're
   // fully independent: change any interval in [SyncIntervals] without touching
@@ -149,6 +156,7 @@ void onStart(ServiceInstance service) async {
     _SyncJob('location', SyncIntervals.location, locationSync.sync),
     _SyncJob('events', SyncIntervals.events, eventSync.sync),
     _SyncJob('appUsage', SyncIntervals.appUsage, appUsageSync.sync),
+    _SyncJob('gallery', SyncIntervals.gallery, gallerySync.sync),
   ];
   for (final job in jobs) {
     job.start();
