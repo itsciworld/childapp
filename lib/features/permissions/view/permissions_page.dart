@@ -74,7 +74,14 @@ class _PermissionsPageState extends ConsumerState<PermissionsPage>
     final notifier = ref.read(permissionsViewModelProvider.notifier);
     final grantedCount = state.granted.values.where((g) => g).length;
     final total = PermissionKey.values.length;
-    final canContinue = grantedCount >= _minGrantedToContinue;
+    // Battery-optimisation exemption is REQUIRED, not optional: without it
+    // Android throttles the foreground service in Doze and background sync
+    // stalls until the app is reopened. So the child can't continue until it's
+    // granted (on top of the minimum data permissions).
+    final batteryGranted =
+        state.isGranted(PermissionKey.ignoreBatteryOptimizations);
+    final canContinue =
+        grantedCount >= _minGrantedToContinue && batteryGranted;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F8FA),
@@ -144,6 +151,16 @@ class _PermissionsPageState extends ConsumerState<PermissionsPage>
                 padding: const EdgeInsets.only(bottom: 24),
                 children: [
                   _HeaderCard(granted: grantedCount, total: total),
+                  // Shown until the child grants the battery-optimisation
+                  // exemption — explains why "Continue" is withheld and lets
+                  // them enable it in one tap.
+                  if (!batteryGranted)
+                    _BatteryRequiredNotice(
+                      busy: state.isBusy(
+                          PermissionKey.ignoreBatteryOptimizations),
+                      onEnable: () => notifier.toggle(
+                          PermissionKey.ignoreBatteryOptimizations, true),
+                    ),
                   const _SectionTitle('Required permissions'),
                   for (final key in PermissionKey.values)
                     _PermissionTile(
@@ -268,6 +285,86 @@ class _HeaderCard extends StatelessWidget {
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Prominent banner that surfaces the battery-optimisation exemption as a
+/// required step. The child can't continue until it's granted, so this makes
+/// the requirement obvious (instead of a silently-missing Continue button) and
+/// enables it in one tap.
+class _BatteryRequiredNotice extends StatelessWidget {
+  const _BatteryRequiredNotice({required this.busy, required this.onEnable});
+
+  final bool busy;
+  final VoidCallback onEnable;
+
+  @override
+  Widget build(BuildContext context) {
+    const amber = Color(0xFFD97706);
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7ED),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: amber.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.battery_alert_outlined, color: amber, size: 24),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Allow background running',
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF92400E),
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Required so monitoring keeps running when the app is closed.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.3,
+                    color: Color(0xFFB45309),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          busy
+              ? const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    valueColor: AlwaysStoppedAnimation(amber),
+                  ),
+                )
+              : TextButton(
+                  onPressed: onEnable,
+                  style: TextButton.styleFrom(
+                    backgroundColor: amber,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: const Text(
+                    'Enable',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
         ],
       ),
     );

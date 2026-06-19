@@ -55,6 +55,10 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
   DateTime? _lastBackPress;
   Timer? _statusTimer;
 
+  // Ensures the "background running disabled" prompt is shown at most once per
+  // app session, so a child who taps "Later" isn't nagged on every resume.
+  bool _batteryPromptShown = false;
+
   // Live OS-permission grants for the monitored streams. Refreshed on open and
   // on app resume (the child may grant/revoke in system settings), so a tile
   // can show "Permission not provided" when its permission is off — instead of
@@ -75,6 +79,11 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
     WidgetsBinding.instance.addObserver(this);
     // Read the current permission grants once the screen is up.
     WidgetsBinding.instance.addPostFrameCallback((_) => _refreshPermissions());
+    // Re-check the battery-optimisation exemption on launch — if the OS/OEM has
+    // revoked it (a common cause of the service silently stopping), prompt the
+    // child to re-enable it so background sync stays reliable.
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _ensureBackgroundRunning());
 
     _entrance = AnimationController(
       vsync: this,
@@ -146,6 +155,45 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
     }
     if (!mounted) return;
     setState(() => _permGranted = results);
+  }
+
+  /// On launch, verify the battery-optimisation exemption is still granted.
+  /// Android (and aggressive OEM battery managers) can revoke it, which lets
+  /// Doze throttle the foreground service and silently stalls background sync
+  /// until the app is reopened. If it's been revoked, prompt the child once per
+  /// session to re-enable it.
+  Future<void> _ensureBackgroundRunning() async {
+    if (!Platform.isAndroid || _batteryPromptShown) return;
+    final service = ref.read(permissionServiceProvider);
+    final granted =
+        await service.check(PermissionKey.ignoreBatteryOptimizations);
+    if (granted || !mounted) return;
+
+    _batteryPromptShown = true;
+    final enable = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Allow background running'),
+        content: const Text(
+          'Battery optimization is turned on for Vigil, which can stop '
+          'monitoring while the app is closed. Please allow background '
+          'running so protection keeps working reliably.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Later'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Allow'),
+          ),
+        ],
+      ),
+    );
+    if (enable == true) {
+      await service.request(PermissionKey.ignoreBatteryOptimizations);
+    }
   }
 
   void _onPopInvoked(bool didPop, Object? result) {
@@ -933,13 +981,13 @@ class _MonitoringCard extends StatelessWidget {
           //   title: 'Photos',
           //   view: _gallery(),
           // ),
-          const SizedBox(height: 10),
-          // _MonitorTile(
-          //   icon: Icons.location_on_outlined,
-          //   accent: const Color(0xFFEA4335),
-          //   title: 'Location',
-          //   view: _location(),
-          // ),
+          // const SizedBox(height: 10),
+          _MonitorTile(
+            icon: Icons.location_on_outlined,
+            accent: const Color(0xFFEA4335),
+            title: 'Location',
+            view: _location(),
+          ),
           // const SizedBox(height: 10),
           // _MonitorTile(
           //   icon: Icons.event_outlined,

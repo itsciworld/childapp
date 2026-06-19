@@ -27,51 +27,106 @@ class LocationSyncService {
   static const String _tag = '[LocationSync]';
 
   /// Don't upload again until the child has moved at least this far (metres).
-  static const double _minDistanceMeters = 150;
+  /// Set to 50m for good accuracy in child tracking without excessive updates.
+  static const double _minDistanceMeters = 500;
 
   /// ...but always upload at least this often, even when stationary, so the
   /// backend knows the device is still alive / parked.
-  static const Duration _heartbeat = Duration(minutes: 15);
+  /// Set to 10 minutes for optimal balance between updates and battery life.
+  static const Duration _heartbeat = Duration(minutes: 10);
 
   /// Runs one pass. Returns the server response when a fix was uploaded, or
   /// `null` when the pass was skipped (no identity / no fix / didn't move) or
   /// failed.
   Future<StoreLocationResponse?> sync() async {
+    final startTime = DateTime.now();
+    debugPrint(
+        '$_tag ━━━━━━ SYNC STARTED at ${startTime.hour}:${startTime.minute}:${startTime.second} ━━━━━━');
+
     try {
       final identity = await _identityStorage.read();
       if (!identity.isComplete) {
-        debugPrint('$_tag skipped — childId/parentId not set yet.');
+        debugPrint('$_tag ❌ SKIPPED — childId/parentId not set yet.');
         return null;
       }
+
+      debugPrint(
+          '$_tag Identity OK: childId=${identity.childId}, parentId=${identity.parentId}');
 
       final position = await _repository.readCurrentLocation();
       if (position == null) {
         // Couldn't read (services off / permission) — still mark the run.
         await _syncStorage.setLastRunAt(DateTime.now());
+        debugPrint(
+            '$_tag ❌ NO POSITION — Location services OFF or permission denied');
         return null;
       }
+
+      debugPrint(
+          '$_tag Position obtained: (${position.latitude}, ${position.longitude})');
 
       final lastSent = await _syncStorage.getLastSent();
       final lastSentAt = await _syncStorage.getLastSentAt();
 
-      final movedEnough = lastSent == null ||
-          Geolocator.distanceBetween(
-                lastSent.lat,
-                lastSent.lng,
-                position.latitude,
-                position.longitude,
-              ) >=
-              _minDistanceMeters;
-      final heartbeatDue = lastSentAt == null ||
-          DateTime.now().difference(lastSentAt) >= _heartbeat;
+      debugPrint(
+          '$_tag Last sent location: ${lastSent != null ? "(${lastSent.lat}, ${lastSent.lng})" : "NONE"}');
+      debugPrint(
+          '$_tag Last sent time: ${lastSentAt != null ? "${DateTime.now().difference(lastSentAt).inMinutes} mins ago" : "NEVER"}');
+
+      // Calculate distance moved from last sent location
+      double? distanceMoved;
+      if (lastSent != null) {
+        distanceMoved = Geolocator.distanceBetween(
+          lastSent.lat,
+          lastSent.lng,
+          position.latitude,
+          position.longitude,
+        );
+      }
+
+      final movedEnough =
+          lastSent == null || distanceMoved! >= _minDistanceMeters;
+
+      // Calculate time since last upload
+      Duration? timeSinceLastUpload;
+      if (lastSentAt != null) {
+        timeSinceLastUpload = DateTime.now().difference(lastSentAt);
+      }
+
+      final heartbeatDue =
+          lastSentAt == null || timeSinceLastUpload! >= _heartbeat;
+
+      // Debug log showing current status
+      debugPrint(
+          '$_tag Check: Distance moved: ${distanceMoved?.toStringAsFixed(1) ?? 'N/A'}m, '
+          'Time since last upload: ${timeSinceLastUpload?.inMinutes ?? 'N/A'} mins, '
+          'Threshold: ${_minDistanceMeters.toInt()}m / ${_heartbeat.inMinutes} mins');
 
       if (!movedEnough && !heartbeatDue) {
         // Stationary and heartbeat not due — record liveness, skip the upload.
         await _syncStorage.setLastRunAt(DateTime.now());
-        debugPrint('$_tag stationary (<${_minDistanceMeters.toInt()}m) — '
-            'skipping upload.');
+        debugPrint(
+            '$_tag ❌ SKIPPED: Distance ${distanceMoved?.toStringAsFixed(1)}m < ${_minDistanceMeters.toInt()}m '
+            'AND time ${timeSinceLastUpload?.inMinutes}mins < ${_heartbeat.inMinutes}mins');
         return null;
       }
+
+      // Determine the reason for upload
+      String uploadReason;
+      if (lastSent == null) {
+        uploadReason = 'FIRST_LOCATION';
+      } else if (movedEnough && heartbeatDue) {
+        uploadReason =
+            'DISTANCE_AND_TIME (moved ${distanceMoved!.toStringAsFixed(1)}m, ${timeSinceLastUpload!.inMinutes}mins passed)';
+      } else if (movedEnough) {
+        uploadReason =
+            'DISTANCE_CHANGED (moved ${distanceMoved!.toStringAsFixed(1)}m)';
+      } else {
+        uploadReason =
+            'HEARTBEAT_TIME (${timeSinceLastUpload!.inMinutes}mins passed)';
+      }
+
+      debugPrint('$_tag ✅ UPLOADING LOCATION - Reason: $uploadReason');
 
       // Reverse-geocode only when we're actually going to send.
       final address = await _repository.reverseGeocode(
@@ -95,9 +150,9 @@ class LocationSyncService {
       await _syncStorage.setLastRunAt(now);
 
       debugPrint(
-        '$_tag sent (${position.latitude}, ${position.longitude}) '
-        '"${address ?? 'no address'}" → '
-        'status ${response.status} ("${response.message}")',
+        '$_tag ✅ SUCCESS: Location sent (${position.latitude}, ${position.longitude}) '
+        '"${address ?? 'no address'}" | Reason: $uploadReason | '
+        'API Response: ${response.status} ("${response.message}")',
       );
       return response;
     } on ApiException catch (e) {

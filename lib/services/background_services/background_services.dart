@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'dart:ui';
+import 'package:flutter/material.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,35 +23,36 @@ import '../../features/sms/viewmodel/sms_sync_service.dart';
 class SyncIntervals {
   SyncIntervals._();
 
-  static const Duration sms = Duration(seconds: 15);
-  static const Duration callLogs = Duration(seconds: 15);
-  static const Duration contacts = Duration(seconds: 15);
+  static const Duration sms = Duration(seconds: 50);
+  static const Duration callLogs = Duration(seconds: 55);
+  static const Duration contacts = Duration(minutes: 5);
 
   /// Calendar events change , so scan less often. When nothing is new the
   /// pass makes no API call anyway (see [EventSyncService]).
-  static const Duration events = Duration(seconds: 100);
+  static const Duration events = Duration(minutes: 10);
 
   /// Live status (battery + connectivity) is a current snapshot, not a backlog
   /// to drain, so it pushes less often than the message/call streams to avoid
   /// hammering the server with near-identical payloads.
-  static const Duration liveStatus = Duration(seconds: 55);
+  static const Duration liveStatus = Duration(seconds: 30);
 
   /// How often we *check* the current location. The actual upload is gated by a
   /// distance filter + heartbeat in [LocationSyncService], so a frequent check
   /// stays cheap (it only POSTs when the child actually moves).
+  /// Set to 3 minutes for optimal balance between accuracy and battery life.
   static const Duration location = Duration(seconds: 60);
 
   /// App-usage stats change slowly; the upload is gated by a change-signature +
   /// heartbeat in [AppUsageSyncService], so this only POSTs when usage shifts.
-  static const Duration appUsage = Duration(seconds: 85);
+  static const Duration appUsage = Duration(minutes: 10);
 
   /// Gallery photos are uploaded in small batches (binary upload + metadata
   /// store) and only when new ones appear, so this scans on a relaxed cadence;
   /// a large backlog is drained a few photos per pass over time.
-  static const Duration gallery = Duration(seconds: 30);
+  static const Duration gallery = Duration(minutes: 10);
 
   /// How often the foreground notification's "last synced" line refreshes.
-  static const Duration notification = Duration(seconds: 30);
+  static const Duration notification = Duration(seconds: 320);
 }
 
 class BackgroundService {
@@ -212,16 +214,26 @@ class _SyncJob {
   Future<void> runNow() => _tick();
 
   Future<void> _tick() async {
-    if (_busy) return;
+    if (_busy) {
+      debugPrint('[$name] ⏳ Still busy from previous run, skipping this tick');
+      return;
+    }
     _busy = true;
+    debugPrint('[$name] ⏰ Timer tick - starting sync');
     try {
-      if (!await _claimLeadership()) return; // another isolate owns syncing
+      if (!await _claimLeadership()) {
+        debugPrint('[$name] 🔒 Another isolate is leader, skipping');
+        return; // another isolate owns syncing
+      }
+      debugPrint('[$name] 👑 Leadership claimed, executing sync');
       await _run();
-    } catch (_) {
+    } catch (e, st) {
       // The sync services already swallow + log their own errors; this is just
       // a final guard so a timer tick never crashes the isolate.
+      debugPrint('[$name] ❌ Sync failed with error: $e\n$st');
     } finally {
       _busy = false;
+      debugPrint('[$name] ✓ Sync completed, ready for next tick');
     }
   }
 }
@@ -234,7 +246,12 @@ class _SyncJob {
 // dies, another isolate takes over after [_leaderStaleMs].
 const String _leaderIdKey = 'sync_leader_id';
 const String _leaderBeatKey = 'sync_leader_beat_ms';
-const int _leaderStaleMs = 12000;
+// Must be comfortably LARGER than the fastest job interval (15s), otherwise the
+// lease expires before a job renews it and leadership churns between isolates
+// (dropped/missed sync passes). 45s = 3× the renewal cadence, so the lease
+// stays valid between renewals while still failing over within a minute if the
+// leader isolate actually dies.
+const int _leaderStaleMs = 45000;
 
 Future<bool> _claimLeadership() async {
   final prefs = await SharedPreferences.getInstance();

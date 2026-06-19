@@ -27,7 +27,7 @@ class ContactSyncService {
   /// contact and is slow — a big first-sync payload blew the receive timeout.
   /// Smaller batches mean fast requests and durable progress (each batch is
   /// marked synced as soon as it lands).
-  static const int _batchSize = 50;
+  static const int _batchSize = 60;
 
   /// Runs one sync pass. Returns the server response on success, or `null`
   /// when the pass was skipped (missing identity / no new contacts) or failed.

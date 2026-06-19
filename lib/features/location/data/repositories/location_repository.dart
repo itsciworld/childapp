@@ -36,22 +36,37 @@ class LocationRepository {
         debugPrint('$_tag location permission not granted — skipping.');
         return null;
       }
-      // A [timeLimit] is essential: with high accuracy and no GPS fix (very
-      // common on emulators) this call would otherwise block forever and hang
-      // the isolate. On timeout we fall back to the last known position.
-      return await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 12),
-        ),
-      );
-    } catch (e) {
-      debugPrint('$_tag getCurrentPosition failed ($e) — trying last known.');
+
+      // Try to get current position with optimized settings for background.
+      // Use medium accuracy (better battery, still good precision ~100m)
+      // and longer timeout to allow GPS to get a fix even in background.
       try {
-        return await Geolocator.getLastKnownPosition();
-      } catch (_) {
-        return null;
+        final position = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.medium,
+            distanceFilter: 100, // Only get updates when moved 100m
+            timeLimit: Duration(seconds: 20), // Longer timeout for background
+          ),
+        );
+        debugPrint(
+            '$_tag got fresh position: (${position.latitude}, ${position.longitude})');
+        return position;
+      } catch (e) {
+        debugPrint('$_tag getCurrentPosition failed ($e) — trying last known.');
+        // Fall back to last known position if current position fails
+        final lastKnown = await Geolocator.getLastKnownPosition(
+          forceAndroidLocationManager:
+              true, // Use Android LocationManager for better background compatibility
+        );
+        if (lastKnown != null) {
+          debugPrint(
+              '$_tag using last known position: (${lastKnown.latitude}, ${lastKnown.longitude})');
+        }
+        return lastKnown;
       }
+    } catch (e) {
+      debugPrint('$_tag location read completely failed: $e');
+      return null;
     }
   }
 
