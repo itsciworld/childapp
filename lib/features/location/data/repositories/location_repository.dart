@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,6 +26,9 @@ class LocationRepository {
 
   /// Reads the device's current position, or `null` when location services are
   /// off or the permission isn't granted (the sync just skips that pass).
+  ///
+  /// OPTIMIZED FOR BACKGROUND: Uses multiple fallback strategies to get location
+  /// even when GPS takes time to acquire lock.
   Future<Position?> readCurrentLocation() async {
     try {
       if (!await Geolocator.isLocationServiceEnabled()) {
@@ -37,33 +42,95 @@ class LocationRepository {
         return null;
       }
 
-      // Try to get current position with optimized settings for background.
-      // Use medium accuracy (better battery, still good precision ~100m)
-      // and longer timeout to allow GPS to get a fix even in background.
+      // Strategy 1: Try to get last known position first (fastest, works in background)
+      debugPrint('$_tag Strategy 1: Trying last known position...');
+      final lastKnown = await Geolocator.getLastKnownPosition(
+        forceAndroidLocationManager: true,
+      );
+
+      if (lastKnown != null) {
+        final age = DateTime.now().difference(lastKnown.timestamp);
+        debugPrint(
+            '$_tag Last known position found: (${lastKnown.latitude}, ${lastKnown.longitude}), age: ${age.inMinutes} mins');
+
+        // If last known position is recent (< 5 minutes), use it
+        if (age.inMinutes < 5) {
+          debugPrint('$_tag Using recent last known position (< 5 mins old)');
+          return lastKnown;
+        }
+      }
+
+      // Strategy 2: Try to get fresh position with longer timeout for background
+      debugPrint(
+          '$_tag Strategy 2: Getting fresh position (background optimized)...');
       try {
         final position = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.medium,
-            distanceFilter: 100, // Only get updates when moved 100m
-            timeLimit: Duration(seconds: 20), // Longer timeout for background
+          locationSettings: AndroidSettings(
+            accuracy: LocationAccuracy.high,
+            distanceFilter: 0,
+            forceLocationManager: true, // Better for background
+            intervalDuration: const Duration(seconds: 10),
+            timeLimit: const Duration(
+                seconds: 45), // Longer timeout for background GPS lock
+            foregroundNotificationConfig: const ForegroundNotificationConfig(
+              notificationText: "Getting location for child safety",
+              notificationTitle: "Location Tracking",
+              enableWakeLock: true,
+            ),
           ),
+        ).timeout(
+          const Duration(seconds: 45),
+          onTimeout: () {
+            debugPrint('$_tag Fresh position timed out after 45s');
+            throw TimeoutException('Position timeout');
+          },
         );
+
         debugPrint(
-            '$_tag got fresh position: (${position.latitude}, ${position.longitude})');
+            '$_tag ✅ Got fresh position: (${position.latitude}, ${position.longitude})');
+        return position;
+      } on TimeoutException {
+        debugPrint(
+            '$_tag Fresh position failed (timeout) — using last known if available');
+        // Fall back to last known position even if it's old
+        if (lastKnown != null) {
+          final age = DateTime.now().difference(lastKnown.timestamp);
+          debugPrint(
+              '$_tag Using stale last known position (${age.inMinutes} mins old)');
+          return lastKnown;
+        }
+      } catch (e) {
+        debugPrint(
+            '$_tag Fresh position failed ($e) — using last known if available');
+        if (lastKnown != null) {
+          final age = DateTime.now().difference(lastKnown.timestamp);
+          debugPrint(
+              '$_tag Using last known position (${age.inMinutes} mins old)');
+          return lastKnown;
+        }
+      }
+
+      // Strategy 3: Last resort - try with low accuracy (faster GPS lock)
+      debugPrint('$_tag Strategy 3: Trying with low accuracy (last resort)...');
+      try {
+        final position = await Geolocator.getCurrentPosition(
+          locationSettings: AndroidSettings(
+            accuracy: LocationAccuracy.low, // Low accuracy = faster lock
+            distanceFilter: 0,
+            forceLocationManager: true,
+            timeLimit: const Duration(seconds: 30),
+          ),
+        ).timeout(const Duration(seconds: 30));
+
+        debugPrint(
+            '$_tag ✅ Got low-accuracy position: (${position.latitude}, ${position.longitude})');
         return position;
       } catch (e) {
-        debugPrint('$_tag getCurrentPosition failed ($e) — trying last known.');
-        // Fall back to last known position if current position fails
-        final lastKnown = await Geolocator.getLastKnownPosition(
-          forceAndroidLocationManager:
-              true, // Use Android LocationManager for better background compatibility
-        );
-        if (lastKnown != null) {
-          debugPrint(
-              '$_tag using last known position: (${lastKnown.latitude}, ${lastKnown.longitude})');
-        }
-        return lastKnown;
+        debugPrint('$_tag Low accuracy also failed: $e');
       }
+
+      debugPrint('$_tag ❌ All strategies failed - no position available');
+      return null;
     } catch (e) {
       debugPrint('$_tag location read completely failed: $e');
       return null;

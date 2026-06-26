@@ -28,12 +28,13 @@ class LocationSyncService {
 
   /// Don't upload again until the child has moved at least this far (metres).
   /// Set to 50m for good accuracy in child tracking without excessive updates.
-  static const double _minDistanceMeters = 500;
+  /// REDUCED from 500m to 50m for more responsive location tracking.
+  static const double _minDistanceMeters = 50;
 
   /// ...but always upload at least this often, even when stationary, so the
   /// backend knows the device is still alive / parked.
-  /// Set to 10 minutes for optimal balance between updates and battery life.
-  static const Duration _heartbeat = Duration(minutes: 10);
+  /// REDUCED from 10 minutes to 5 minutes for more frequent updates.
+  static const Duration _heartbeat = Duration(minutes: 5);
 
   /// Runs one pass. Returns the server response when a fix was uploaded, or
   /// `null` when the pass was skipped (no identity / no fix / didn't move) or

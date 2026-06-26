@@ -975,13 +975,13 @@ class _MonitoringCard extends StatelessWidget {
             view: _contacts(),
           ),
           const SizedBox(height: 10),
-          // _MonitorTile(
-          //   icon: Icons.photo_library_outlined,
-          //   accent: const Color(0xFFEC4899),
-          //   title: 'Photos',
-          //   view: _gallery(),
-          // ),
-          // const SizedBox(height: 10),
+          _MonitorTile(
+            icon: Icons.photo_library_outlined,
+            accent: const Color(0xFFEC4899),
+            title: 'Photos',
+            view: _gallery(),
+          ),
+          const SizedBox(height: 10),
           _MonitorTile(
             icon: Icons.location_on_outlined,
             accent: const Color(0xFFEA4335),
@@ -995,13 +995,13 @@ class _MonitoringCard extends StatelessWidget {
           //   title: 'Calendar events',
           //   view: _events(),
           // ),
-          // const SizedBox(height: 10),
-          // _MonitorTile(
-          //   icon: Icons.apps_outlined,
-          //   accent: const Color(0xFFF59E0B),
-          //   title: 'App usage',
-          //   view: _appUsage(),
-          // ),
+          const SizedBox(height: 10),
+          _MonitorTile(
+            icon: Icons.apps_outlined,
+            accent: const Color(0xFFF59E0B),
+            title: 'App usage',
+            view: _appUsage(),
+          ),
         ],
       ),
     );

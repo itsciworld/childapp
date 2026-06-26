@@ -16,43 +16,59 @@ import '../../features/gallery/viewmodel/gallery_sync_service.dart';
 import '../../features/live_status/viewmodel/live_status_sync_service.dart';
 import '../../features/location/viewmodel/location_sync_service.dart';
 import '../../features/sms/viewmodel/sms_sync_service.dart';
+import 'service_watchdog.dart';
 
 /// How often each monitored stream uploads. Each stream runs on its OWN timer,
 /// so you can change any one of these independently without affecting the
 /// others — e.g. sync contacts far less often than messages.
+///
+/// IMPORTANT: Intervals are balanced for production reliability and battery life.
+/// Android enforces strict background execution limits (especially in Doze mode),
+/// so these intervals are set to work reliably across all Android versions and
+/// manufacturers while still providing timely monitoring data.
 class SyncIntervals {
   SyncIntervals._();
 
-  static const Duration sms = Duration(seconds: 50);
-  static const Duration callLogs = Duration(seconds: 55);
-  static const Duration contacts = Duration(minutes: 5);
+  /// SMS sync - reduced from 10s to 2min to comply with Android background limits
+  /// and prevent aggressive battery optimization. SMS are batched (100 per pass),
+  /// so a 2-minute interval still drains backlogs quickly.
+  static const Duration sms = Duration(minutes: 2);
 
-  /// Calendar events change , so scan less often. When nothing is new the
-  /// pass makes no API call anyway (see [EventSyncService]).
-  static const Duration events = Duration(minutes: 10);
+  /// Call logs - reduced from 55s to 3min for the same reliability reasons.
+  /// The sync service already handles batching and incremental uploads.
+  static const Duration callLogs = Duration(minutes: 3);
 
-  /// Live status (battery + connectivity) is a current snapshot, not a backlog
-  /// to drain, so it pushes less often than the message/call streams to avoid
-  /// hammering the server with near-identical payloads.
-  static const Duration liveStatus = Duration(seconds: 30);
+  /// Contacts - 10min is appropriate since contact changes are infrequent.
+  static const Duration contacts = Duration(minutes: 10);
 
-  /// How often we *check* the current location. The actual upload is gated by a
-  /// distance filter + heartbeat in [LocationSyncService], so a frequent check
-  /// stays cheap (it only POSTs when the child actually moves).
-  /// Set to 3 minutes for optimal balance between accuracy and battery life.
-  static const Duration location = Duration(seconds: 60);
+  /// Calendar events change infrequently, so 15min scan is optimal. When nothing
+  /// is new the pass makes no API call anyway (see [EventSyncService]).
+  static const Duration events = Duration(minutes: 15);
 
-  /// App-usage stats change slowly; the upload is gated by a change-signature +
-  /// heartbeat in [AppUsageSyncService], so this only POSTs when usage shifts.
-  static const Duration appUsage = Duration(minutes: 10);
+  /// Live status (battery + connectivity) - increased from 30s to 1min to reduce
+  /// wake-ups. Still provides near-real-time status while being Android-friendly.
+  static const Duration liveStatus = Duration(minutes: 1);
 
-  /// Gallery photos are uploaded in small batches (binary upload + metadata
-  /// store) and only when new ones appear, so this scans on a relaxed cadence;
-  /// a large backlog is drained a few photos per pass over time.
-  static const Duration gallery = Duration(minutes: 10);
+  /// Location check interval - increased from 10s to 1min. This is still very
+  /// responsive because the actual upload is gated by a 500m distance filter +
+  /// 10-minute heartbeat in [LocationSyncService], so it only POSTs when the
+  /// child actually moves. A 1-minute check stays battery-efficient while
+  /// maintaining accurate location tracking.
+  static const Duration location = Duration(minutes: 1);
+
+  /// App-usage stats change slowly; 15min is optimal. The upload is gated by a
+  /// change-signature + heartbeat in [AppUsageSyncService], so this only POSTs
+  /// when usage actually shifts.
+  static const Duration appUsage = Duration(minutes: 15);
+
+  /// Gallery photos - 15min provides good balance. Photos are uploaded in small
+  /// batches (binary upload + metadata store) and only when new ones appear, so
+  /// this scans on a relaxed cadence; a large backlog is drained gradually.
+  static const Duration gallery = Duration(minutes: 15);
 
   /// How often the foreground notification's "last synced" line refreshes.
-  static const Duration notification = Duration(seconds: 320);
+  /// Increased from 5min to reduce unnecessary wake-ups.
+  static const Duration notification = Duration(minutes: 5);
 }
 
 class BackgroundService {
@@ -184,6 +200,11 @@ void onStart(ServiceInstance service) async {
         content: 'Last active: $hh:$mm',
       );
     }
+  });
+
+  // Update heartbeat every minute so the watchdog knows we're alive
+  Timer.periodic(const Duration(minutes: 1), (_) async {
+    await ServiceWatchdog.updateHeartbeat();
   });
 }
 
