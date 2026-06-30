@@ -107,8 +107,8 @@ class LocationSyncService {
         // Stationary and heartbeat not due — record liveness, skip the upload.
         await _syncStorage.setLastRunAt(DateTime.now());
         debugPrint(
-            '$_tag ❌ SKIPPED: Distance ${distanceMoved?.toStringAsFixed(1)}m < ${_minDistanceMeters.toInt()}m '
-            'AND time ${timeSinceLastUpload?.inMinutes}mins < ${_heartbeat.inMinutes}mins');
+            '$_tag ❌ SKIPPED: Distance ${distanceMoved.toStringAsFixed(1)}m < ${_minDistanceMeters.toInt()}m '
+            'AND time ${timeSinceLastUpload.inMinutes}mins < ${_heartbeat.inMinutes}mins');
         return null;
       }
 

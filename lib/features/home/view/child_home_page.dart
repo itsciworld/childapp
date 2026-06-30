@@ -988,13 +988,13 @@ class _MonitoringCard extends StatelessWidget {
             title: 'Location',
             view: _location(),
           ),
-          // const SizedBox(height: 10),
-          // _MonitorTile(
-          //   icon: Icons.event_outlined,
-          //   accent: const Color(0xFF0EA5E9),
-          //   title: 'Calendar events',
-          //   view: _events(),
-          // ),
+          const SizedBox(height: 10),
+          _MonitorTile(
+            icon: Icons.event_outlined,
+            accent: const Color(0xFF0EA5E9),
+            title: 'Calendar events',
+            view: _events(),
+          ),
           const SizedBox(height: 10),
           _MonitorTile(
             icon: Icons.apps_outlined,

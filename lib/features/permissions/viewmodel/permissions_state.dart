@@ -13,6 +13,14 @@ enum PermissionKey {
   calendar,
   usageAccess,
   ignoreBatteryOptimizations,
+
+  /// Special access: "Notification access" — powers social-message capture
+  /// from notifications (FEATURE A). Granted on a system Settings page.
+  notificationListener,
+
+  /// Special access: Accessibility — powers on-screen chat capture
+  /// (FEATURE B). Granted under Settings → Accessibility.
+  accessibilityService,
 }
 
 /// Immutable UI state for the permissions screen, driven by

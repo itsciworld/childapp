@@ -87,6 +87,34 @@
             android:enabled="true"
             android:exported="true" />
 
+        <!-- FEATURE A: Notification capture. Bound by the system once the child
+             grants "Notification access"; the BIND permission means only the OS
+             can bind it, so exported can stay false. -->
+        <service
+            android:name=".VigilNotificationListenerService"
+            android:label="Vigil Message Monitor"
+            android:exported="false"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!-- FEATURE B: On-screen capture. Bound by the system once the child
+             enables it under Settings → Accessibility. -->
+        <service
+            android:name=".VigilAccessibilityService"
+            android:label="Vigil Message Monitor"
+            android:exported="false"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />

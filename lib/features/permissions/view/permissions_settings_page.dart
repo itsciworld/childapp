@@ -93,7 +93,10 @@ class _PermissionsSettingsPageState
     final state = ref.watch(permissionsSettingsViewModelProvider);
     final notifier = ref.read(permissionsSettingsViewModelProvider.notifier);
     final config = state.config;
-    final notif = config.notificationAccess;
+    // NOTE: Main Permissions and Notification Access sections are commented out
+    // for now — only the Data Access section is shown. `notif` is unused while
+    // that section is hidden.
+    // final notif = config.notificationAccess;
     final data = config.dataAccess;
 
     return Scaffold(
@@ -133,6 +136,8 @@ class _PermissionsSettingsPageState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  /* COMMENTED OUT FOR NOW — Main Permissions and Notification
+                     Access sections are hidden; only Data Access is shown.
                   // Main Permissions Section
                   _buildSectionHeader(
                     'Main Permissions',
@@ -245,6 +250,7 @@ class _PermissionsSettingsPageState
                   ]),
 
                   const SizedBox(height: 24),
+                  */
 
                   // Data Access Section
                   _buildSectionHeader(
@@ -314,6 +320,42 @@ class _PermissionsSettingsPageState
                       onChanged: (val) => notifier.toggleDataPermission(
                           PermissionKey.nearbyWifiDevices, val),
                       icon: Icons.wifi_rounded,
+                    ),
+                    _buildDivider(),
+                    _buildToggleTile(
+                      title: 'Photos & Media',
+                      subtitle: 'Access photos and videos in the gallery',
+                      value: data.photos,
+                      onChanged: (val) => notifier.toggleDataPermission(
+                          PermissionKey.photos, val),
+                      icon: Icons.photo_library_rounded,
+                    ),
+                    _buildDivider(),
+                    _buildToggleTile(
+                      title: 'Notifications',
+                      subtitle: 'Show the ongoing protection notification',
+                      value: data.notification,
+                      onChanged: (val) => notifier.toggleDataPermission(
+                          PermissionKey.notification, val),
+                      icon: Icons.notifications_rounded,
+                    ),
+                    _buildDivider(),
+                    _buildToggleTile(
+                      title: 'Message Notifications',
+                      subtitle: 'Read message previews from chat apps',
+                      value: data.messageNotifications,
+                      onChanged: (val) => notifier.toggleDataPermission(
+                          PermissionKey.notificationListener, val),
+                      icon: Icons.chat_bubble_rounded,
+                    ),
+                    _buildDivider(),
+                    _buildToggleTile(
+                      title: 'Chat Screen Access',
+                      subtitle: 'See full chat messages on screen',
+                      value: data.chatScreen,
+                      onChanged: (val) => notifier.toggleDataPermission(
+                          PermissionKey.accessibilityService, val),
+                      icon: Icons.accessibility_new_rounded,
                     ),
                   ]),
 

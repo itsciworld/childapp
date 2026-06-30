@@ -146,6 +146,10 @@ class DataAccess {
     this.location = false,
     this.appUsage = false,
     this.networkWifi = false,
+    this.photos = false,
+    this.notification = false,
+    this.messageNotifications = false,
+    this.chatScreen = false,
   });
 
   final bool messages;
@@ -163,6 +167,21 @@ class DataAccess {
   /// the live-status feature's Wi-Fi details. Sent under `network_wifi`.
   final bool networkWifi;
 
+  /// Photos & media (gallery) access. Sent under `photos`.
+  final bool photos;
+
+  /// Post-notifications runtime permission (the protection notification).
+  /// Sent under `notification`.
+  final bool notification;
+
+  /// Notification-listener special access — message previews from WhatsApp and
+  /// other chat apps. Sent under `message_notifications`.
+  final bool messageNotifications;
+
+  /// Accessibility special access — full on-screen chat capture. Sent under
+  /// `chat_screen`.
+  final bool chatScreen;
+
   factory DataAccess.fromJson(Map<String, dynamic> json) {
     bool flag(dynamic v) => v == true;
     return DataAccess(
@@ -173,6 +192,10 @@ class DataAccess {
       location: flag(json['location']),
       appUsage: flag(json['app_usage']),
       networkWifi: flag(json['network_wifi']),
+      photos: flag(json['photos']),
+      notification: flag(json['notification']),
+      messageNotifications: flag(json['message_notifications']),
+      chatScreen: flag(json['chat_screen']),
     );
   }
 
@@ -184,6 +207,10 @@ class DataAccess {
         'location': location,
         'app_usage': appUsage,
         'network_wifi': networkWifi,
+        'photos': photos,
+        'notification': notification,
+        'message_notifications': messageNotifications,
+        'chat_screen': chatScreen,
       };
 
   DataAccess copyWith({
@@ -194,6 +221,10 @@ class DataAccess {
     bool? location,
     bool? appUsage,
     bool? networkWifi,
+    bool? photos,
+    bool? notification,
+    bool? messageNotifications,
+    bool? chatScreen,
   }) {
     return DataAccess(
       messages: messages ?? this.messages,
@@ -203,6 +234,10 @@ class DataAccess {
       location: location ?? this.location,
       appUsage: appUsage ?? this.appUsage,
       networkWifi: networkWifi ?? this.networkWifi,
+      photos: photos ?? this.photos,
+      notification: notification ?? this.notification,
+      messageNotifications: messageNotifications ?? this.messageNotifications,
+      chatScreen: chatScreen ?? this.chatScreen,
     );
   }
 }

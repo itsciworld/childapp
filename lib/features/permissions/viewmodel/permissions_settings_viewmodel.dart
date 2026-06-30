@@ -84,6 +84,10 @@ class PermissionsSettingsViewModel
     PermissionKey.usageAccess: null,
     PermissionKey.nearbyWifiDevices: null,
     PermissionKey.calendar: null,
+    PermissionKey.photos: null,
+    PermissionKey.notification: null,
+    PermissionKey.notificationListener: null,
+    PermissionKey.accessibilityService: null,
   };
 
   /// Guards against re-entrant taps while a permission flow is in progress.
@@ -146,6 +150,16 @@ class PermissionsSettingsViewModel
         return config.copyWith(dataAccess: data.copyWith(networkWifi: granted));
       case PermissionKey.calendar:
         return config.copyWith(dataAccess: data.copyWith(calendar: granted));
+      case PermissionKey.photos:
+        return config.copyWith(dataAccess: data.copyWith(photos: granted));
+      case PermissionKey.notification:
+        return config.copyWith(
+            dataAccess: data.copyWith(notification: granted));
+      case PermissionKey.notificationListener:
+        return config.copyWith(
+            dataAccess: data.copyWith(messageNotifications: granted));
+      case PermissionKey.accessibilityService:
+        return config.copyWith(dataAccess: data.copyWith(chatScreen: granted));
       default:
         return config;
     }
@@ -170,6 +184,11 @@ class PermissionsSettingsViewModel
     final location = await granted(PermissionKey.location);
     final networkWifi = await granted(PermissionKey.nearbyWifiDevices);
     final calendar = await granted(PermissionKey.calendar);
+    final photos = await granted(PermissionKey.photos);
+    final notification = await granted(PermissionKey.notification);
+    final messageNotifications =
+        await granted(PermissionKey.notificationListener);
+    final chatScreen = await granted(PermissionKey.accessibilityService);
 
     return config.copyWith(
       allowUsageTracking: config.allowUsageTracking || usage,
@@ -182,6 +201,10 @@ class PermissionsSettingsViewModel
         appUsage: usage,
         networkWifi: networkWifi,
         calendar: calendar,
+        photos: photos,
+        notification: notification,
+        messageNotifications: messageNotifications,
+        chatScreen: chatScreen,
       ),
     );
   }

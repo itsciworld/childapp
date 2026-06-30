@@ -26,16 +26,13 @@ class AppUsageRepository {
 
   static const String _tag = '[AppUsageRepo]';
 
-  /// How far back to total each app's usage.
-  static const Duration _window = Duration(hours: 24);
-
   /// Whether Usage Access is granted (Android-only special permission).
   Future<bool> hasPermission() async =>
       (await UsageStats.checkUsagePermission()) ?? false;
 
-  /// Reads the last-24h foreground usage and maps it into upload-ready
-  /// [AppUsageItem]s (only apps with ≥ 1 minute of usage), sorted most-used
-  /// first. Returns an empty list when permission isn't granted.
+  /// Reads today's foreground usage (since local midnight) and maps it into
+  /// upload-ready [AppUsageItem]s (only apps with ≥ 1 minute of usage), sorted
+  /// most-used first. Returns an empty list when permission isn't granted.
   Future<List<AppUsageItem>> readUsage() async {
     try {
       if (!await hasPermission()) {
@@ -44,7 +41,10 @@ class AppUsageRepository {
       }
 
       final end = DateTime.now();
-      final start = end.subtract(_window);
+      // "Today" = from the device's local midnight (12:00 AM) up to now, NOT a
+      // rolling 24h window. So usage resets at midnight: tomorrow's 12:00 AM
+      // starts a fresh day, and yesterday's usage is never mixed into today.
+      final start = DateTime(end.year, end.month, end.day);
       // Aggregating collapses the per-interval rows into one entry per package.
       final stats = await UsageStats.queryAndAggregateUsageStats(start, end);
 
@@ -56,7 +56,7 @@ class AppUsageRepository {
         final foregroundMs =
             int.tryParse(entry.totalTimeInForeground ?? '') ?? 0;
         final minutes = foregroundMs ~/ 60000;
-        if (minutes < 1) continue; // skip apps barely/never used in the window
+        if (minutes < 1) continue; // skip apps barely/never used today
 
         final lastUsedMs = int.tryParse(entry.lastTimeUsed ?? '');
         items.add(

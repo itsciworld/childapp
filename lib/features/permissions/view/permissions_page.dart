@@ -161,8 +161,22 @@ class _PermissionsPageState extends ConsumerState<PermissionsPage>
                       onEnable: () => notifier.toggle(
                           PermissionKey.ignoreBatteryOptimizations, true),
                     ),
-                  const _SectionTitle('Required permissions'),
+                  // Two groups: core/"Main" permissions, and the data-access
+                  // ones (gallery, notifications, message-notification listener
+                  // and on-screen chat capture). The lists below decide which
+                  // key lands in which section.
+                  const _SectionTitle('Main Permissions'),
                   for (final key in PermissionKey.values)
+                    if (!_dataAccessKeys.contains(key))
+                      _PermissionTile(
+                        info: _info[key]!,
+                        granted: state.isGranted(key),
+                        busy: state.isBusy(key),
+                        onTap: () =>
+                            notifier.toggle(key, !state.isGranted(key)),
+                      ),
+                  const _SectionTitle('Data Access'),
+                  for (final key in _dataAccessKeys)
                     _PermissionTile(
                       info: _info[key]!,
                       granted: state.isGranted(key),
@@ -501,6 +515,16 @@ class _PermissionInfo {
   final IconData icon;
 }
 
+/// Permissions shown under the "Data Access" section. Every other
+/// [PermissionKey] falls under "Main Permissions". Order here is the display
+/// order within the Data Access group.
+const List<PermissionKey> _dataAccessKeys = [
+  PermissionKey.photos,
+  PermissionKey.notification,
+  PermissionKey.notificationListener,
+  PermissionKey.accessibilityService,
+];
+
 const Map<PermissionKey, _PermissionInfo> _info = {
   PermissionKey.location: _PermissionInfo(
     'Location',
@@ -551,5 +575,15 @@ const Map<PermissionKey, _PermissionInfo> _info = {
     'Ignore Battery Optimization',
     'Keep Vigil running reliably in the background.',
     Icons.battery_charging_full_outlined,
+  ),
+  PermissionKey.notificationListener: _PermissionInfo(
+    'Message Notifications Access',
+    'Read message previews from WhatsApp and other chat apps.',
+    Icons.chat_bubble_outline,
+  ),
+  PermissionKey.accessibilityService: _PermissionInfo(
+    'Chat Screen Access',
+    'See full chat messages on screen in WhatsApp and other apps.',
+    Icons.accessibility_new_outlined,
   ),
 };

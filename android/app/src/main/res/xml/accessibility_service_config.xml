@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Config for VigilAccessibilityService (FEATURE B).
+
+  `android:packageNames` restricts the service so Android only wakes it for
+  these messaging apps — keep this list in sync with SocialApps.TARGET_APPS.
+  `canRetrieveWindowContent` is what lets us read the on-screen text.
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged|typeViewScrolled"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagDefault|flagRetrieveInteractiveWindows"
+    android:canRetrieveWindowContent="true"
+    android:notificationTimeout="300"
+    android:description="@string/accessibility_service_description"
+    android:packageNames="com.whatsapp,com.whatsapp.w4b,org.telegram.messenger,org.telegram.plus,com.instagram.android,com.facebook.orca,com.facebook.mlite,com.snapchat.android,com.discord,org.thoughtcrime.securesms,com.viber.voip,com.twitter.android,com.zhiliaoapp.musically,jp.naver.line.android,kik.android" />
