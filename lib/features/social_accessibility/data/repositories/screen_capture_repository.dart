@@ -31,13 +31,13 @@ class ScreenCaptureRepository {
 
   static const String _tag = '[SocialA11y]';
 
-  /// TODO(backend): real endpoint for captured on-screen text.
+  /// Live endpoint for captured on-screen text.
   static const String _endpoint = '/api/social/screen';
 
   /// While `false`, nothing is sent over the network — the payload that WOULD
-  /// be posted is printed in full to the debug console instead. Flip to `true`
-  /// once the backend is ready.
-  static bool get _uploadEnabled => false;
+  /// be posted is printed in full to the debug console instead. Live now that
+  /// the backend is ready.
+  static bool get _uploadEnabled => true;
 
   /// Drains everything captured since the last pass into upload-ready entries.
   Future<List<ScreenMessageEntry>> readQueued() async {

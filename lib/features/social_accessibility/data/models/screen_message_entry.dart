@@ -53,14 +53,13 @@ class ScreenMessageEntry {
         'capturedAt': capturedAt.millisecondsSinceEpoch,
       };
 
-  /// Upload payload shape. ADJUST THIS to match the backend schema when wiring
-  /// the real endpoint — it's the only place the request contract is built.
+  /// Upload payload shape — matches the `POST /api/social/screen` `messages[]`
+  /// contract. The only place the request contract is built.
   Map<String, dynamic> toJson() => {
         'package': packageName,
         'app': appName,
         'conversation': conversation,
         'text': text,
         'captured_at': capturedAt.toUtc().toIso8601String(),
-        'source': 'accessibility',
       };
 }

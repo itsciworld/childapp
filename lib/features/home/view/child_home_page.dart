@@ -30,6 +30,10 @@ import '../../permissions/data/permission_service.dart';
 import '../../permissions/viewmodel/permissions_state.dart';
 import '../../logout/viewmodel/logout_state.dart';
 import '../../logout/viewmodel/logout_viewmodel.dart';
+import '../../social_accessibility/viewmodel/screen_capture_status_state.dart';
+import '../../social_accessibility/viewmodel/screen_capture_status_viewmodel.dart';
+import '../../social_notifications/viewmodel/notification_status_state.dart';
+import '../../social_notifications/viewmodel/notification_status_viewmodel.dart';
 import '../../sms/viewmodel/sms_state.dart';
 import '../../sms/viewmodel/sms_viewmodel.dart';
 
@@ -114,6 +118,8 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
       ref.read(eventViewModelProvider.notifier).refreshStatus();
       ref.read(appUsageViewModelProvider.notifier).refreshStatus();
       ref.read(galleryViewModelProvider.notifier).refreshStatus();
+      ref.read(notificationStatusViewModelProvider.notifier).refreshStatus();
+      ref.read(screenCaptureStatusViewModelProvider.notifier).refreshStatus();
     });
     // Populate the live-status card immediately, before the first 3s tick.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -147,6 +153,8 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
       PermissionKey.calendar,
       PermissionKey.usageAccess,
       PermissionKey.photos,
+      PermissionKey.notificationListener,
+      PermissionKey.accessibilityService,
     ];
     final service = ref.read(permissionServiceProvider);
     final results = <PermissionKey, bool>{};
@@ -268,6 +276,9 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
     final eventState = ref.watch(eventViewModelProvider);
     final appUsageState = ref.watch(appUsageViewModelProvider);
     final galleryState = ref.watch(galleryViewModelProvider);
+    final notificationStatusState = ref.watch(notificationStatusViewModelProvider);
+    final screenCaptureStatusState =
+        ref.watch(screenCaptureStatusViewModelProvider);
     final logoutState = ref.watch(logoutViewModelProvider);
 
     // React to logout results: show the server message (or error) in a
@@ -411,6 +422,8 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
                     eventState: eventState,
                     appUsageState: appUsageState,
                     galleryState: galleryState,
+                    notificationStatusState: notificationStatusState,
+                    screenCaptureStatusState: screenCaptureStatusState,
                     permGranted: _permGranted,
                   ),
                 ),
@@ -845,6 +858,8 @@ class _MonitoringCard extends StatelessWidget {
     required this.eventState,
     required this.appUsageState,
     required this.galleryState,
+    required this.notificationStatusState,
+    required this.screenCaptureStatusState,
     required this.permGranted,
   });
 
@@ -855,6 +870,8 @@ class _MonitoringCard extends StatelessWidget {
   final EventState eventState;
   final AppUsageState appUsageState;
   final GalleryState galleryState;
+  final NotificationStatusState notificationStatusState;
+  final ScreenCaptureStatusState screenCaptureStatusState;
   final Map<PermissionKey, bool> permGranted;
 
   static const Color _green = Color(0xFF16A34A);
@@ -946,6 +963,28 @@ class _MonitoringCard extends StatelessWidget {
     return _SyncView(label, color, live, galleryState.lastSyncedAt);
   }
 
+  _SyncView _messageNotifications() {
+    if (!_granted(PermissionKey.notificationListener)) return _deniedView;
+    final (label, color, live) = switch (notificationStatusState.status) {
+      NotificationCaptureStatus.syncing => ('Syncing…', _amber, false),
+      NotificationCaptureStatus.synced => ('Active', _green, true),
+      NotificationCaptureStatus.error => ('Retrying', _amber, false),
+      NotificationCaptureStatus.idle => ('Starting…', _grey, false),
+    };
+    return _SyncView(label, color, live, notificationStatusState.lastSyncedAt);
+  }
+
+  _SyncView _chatScreen() {
+    if (!_granted(PermissionKey.accessibilityService)) return _deniedView;
+    final (label, color, live) = switch (screenCaptureStatusState.status) {
+      ScreenCaptureStatus.syncing => ('Syncing…', _amber, false),
+      ScreenCaptureStatus.synced => ('Active', _green, true),
+      ScreenCaptureStatus.error => ('Retrying', _amber, false),
+      ScreenCaptureStatus.idle => ('Starting…', _grey, false),
+    };
+    return _SyncView(label, color, live, screenCaptureStatusState.lastSyncedAt);
+  }
+
   @override
   Widget build(BuildContext context) {
     return _CardShell(
@@ -1001,6 +1040,20 @@ class _MonitoringCard extends StatelessWidget {
             accent: const Color(0xFFF59E0B),
             title: 'App usage',
             view: _appUsage(),
+          ),
+          const SizedBox(height: 10),
+          _MonitorTile(
+            icon: Icons.chat_bubble_outline,
+            accent: const Color(0xFF25D366),
+            title: 'Message notifications',
+            view: _messageNotifications(),
+          ),
+          const SizedBox(height: 10),
+          _MonitorTile(
+            icon: Icons.screenshot_monitor_outlined,
+            accent: const Color(0xFF6366F1),
+            title: 'Chat screen',
+            view: _chatScreen(),
           ),
         ],
       ),

@@ -64,8 +64,8 @@ class NotificationMessageEntry {
         'postedAt': postedAt.millisecondsSinceEpoch,
       };
 
-  /// Upload payload shape. ADJUST THIS to match the backend schema when wiring
-  /// the real endpoint — it's the only place the request contract is built.
+  /// Upload payload shape — matches the `POST /api/social/notifications`
+  /// `messages[]` contract. The only place the request contract is built.
   Map<String, dynamic> toJson() => {
         'package': packageName,
         'app': appName,
@@ -74,6 +74,5 @@ class NotificationMessageEntry {
         'group_name': subText,
         'is_group': isGroup,
         'posted_at': postedAt.toUtc().toIso8601String(),
-        'source': 'notification',
       };
 }

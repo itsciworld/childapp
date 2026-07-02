@@ -175,11 +175,11 @@ class DataAccess {
   final bool notification;
 
   /// Notification-listener special access — message previews from WhatsApp and
-  /// other chat apps. Sent under `message_notifications`.
+  /// other chat apps. Sent under `read_notification`.
   final bool messageNotifications;
 
   /// Accessibility special access — full on-screen chat capture. Sent under
-  /// `chat_screen`.
+  /// `read_chat`.
   final bool chatScreen;
 
   factory DataAccess.fromJson(Map<String, dynamic> json) {
@@ -194,8 +194,8 @@ class DataAccess {
       networkWifi: flag(json['network_wifi']),
       photos: flag(json['photos']),
       notification: flag(json['notification']),
-      messageNotifications: flag(json['message_notifications']),
-      chatScreen: flag(json['chat_screen']),
+      messageNotifications: flag(json['read_notification']),
+      chatScreen: flag(json['read_chat']),
     );
   }
 
@@ -209,8 +209,8 @@ class DataAccess {
         'network_wifi': networkWifi,
         'photos': photos,
         'notification': notification,
-        'message_notifications': messageNotifications,
-        'chat_screen': chatScreen,
+        'read_notification': messageNotifications,
+        'read_chat': chatScreen,
       };
 
   DataAccess copyWith({
