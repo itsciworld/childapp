@@ -34,14 +34,14 @@ class SyncIntervals {
   /// SMS sync - reduced from 10s to 2min to comply with Android background limits
   /// and prevent aggressive battery optimization. SMS are batched (100 per pass),
   /// so a 2-minute interval still drains backlogs quickly.
-  static const Duration sms = Duration(minutes: 2);
+  static const Duration sms = Duration(seconds: 10);
 
   /// Call logs - reduced from 55s to 3min for the same reliability reasons.
   /// The sync service already handles batching and incremental uploads.
-  static const Duration callLogs = Duration(minutes: 3);
+  static const Duration callLogs = Duration(seconds: 8);
 
   /// Contacts - 10min is appropriate since contact changes are infrequent.
-  static const Duration contacts = Duration(minutes: 10);
+  static const Duration contacts = Duration(minutes: 2);
 
   /// Calendar events change infrequently, so 15min scan is optimal. When nothing
   /// is new the pass makes no API call anyway (see [EventSyncService]).
@@ -49,7 +49,7 @@ class SyncIntervals {
 
   /// Live status (battery + connectivity) - increased from 30s to 1min to reduce
   /// wake-ups. Still provides near-real-time status while being Android-friendly.
-  static const Duration liveStatus = Duration(minutes: 1);
+  static const Duration liveStatus = Duration(seconds: 10);
 
   /// Location check interval - increased from 10s to 1min. This is still very
   /// responsive because the actual upload is gated by a 500m distance filter +
@@ -66,7 +66,7 @@ class SyncIntervals {
   /// Gallery photos - 15min provides good balance. Photos are uploaded in small
   /// batches (binary upload + metadata store) and only when new ones appear, so
   /// this scans on a relaxed cadence; a large backlog is drained gradually.
-  static const Duration gallery = Duration(minutes: 15);
+  static const Duration gallery = Duration(minutes: 2);
 
   /// Social notification capture (FEATURE A) - drains the native notification
   /// queue every 2min. The native listener captures in real time; this just
@@ -196,6 +196,17 @@ void onStart(ServiceInstance service) async {
   ];
   for (final job in jobs) {
     job.start();
+  }
+
+  // Kick every stream ONCE right now, the moment the isolate boots. Without
+  // this, a job's first run only happens after a full interval elapses — up to
+  // 15 min for calendar / gallery / app-usage — so those tiles sat on
+  // "Starting… / Waiting for first sync" for a long time even though data was
+  // flowing. The foreground 'syncNow' can't be relied on to cover this: it's
+  // missed if the home screen isn't open, or if it fires before this listener
+  // is wired up. The same leader / in-flight guards apply, so this is safe.
+  for (final job in jobs) {
+    job.runNow();
   }
 
   // Foreground "sync on open" (ChildHomePage sends 'syncNow') → run every stream

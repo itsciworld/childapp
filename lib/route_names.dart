@@ -6,7 +6,6 @@ class RouteNames {
   static const String home = '/';
   static const String login = '/login';
   static const String register = '/register';
-  static const String terms = '/terms';
   static const String welcome = '/welcome';
 
   /// The child's landing screen shown after setup is complete.

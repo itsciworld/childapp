@@ -30,7 +30,7 @@ class _SplashViewState extends ConsumerState<SplashView> {
   ///
   /// - If a pairing token and a complete child/parent identity are already
   ///   stored, the device is paired → jump straight to the child home screen.
-  /// - Otherwise start the normal onboarding flow from the terms screen.
+  /// - Otherwise start the normal onboarding flow from the login screen.
   Future<void> _resolveSession() async {
     final results = await Future.wait([
       Future<void>.delayed(const Duration(seconds: 1)),
@@ -46,7 +46,7 @@ class _SplashViewState extends ConsumerState<SplashView> {
     if (!mounted) return;
     Navigator.pushReplacementNamed(
       context,
-      isPaired ? RouteNames.childHome : RouteNames.terms,
+      isPaired ? RouteNames.childHome : RouteNames.login,
     );
   }
 

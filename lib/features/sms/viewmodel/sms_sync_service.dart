@@ -25,7 +25,7 @@ class SmsSyncService {
   /// Max messages per upload request. Like the contacts / call-log sync, we send
   /// ONE batch per pass so each request is small/fast and a big first sync
   /// drains gradually over successive passes instead of one huge upload.
-  static const int _batchSize = 100;
+  static const int _batchSize = 150;
 
   /// Runs one sync pass. Returns the server response on success, or `null`
   /// when the pass was skipped (missing identity / no messages) or failed.

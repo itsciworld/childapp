@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vigil1/services/background_services/background_services.dart';
 import 'package:vigil1/services/background_services/service_watchdog.dart';
+import 'package:vigil1/services/background_services/work_manager_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import 'core/config/env_config.dart';
@@ -20,8 +21,16 @@ void main() async {
   // Initialize the foreground service
   await BackgroundService.initializeService();
 
-  // Start the watchdog to monitor service health
+  // Start the in-process watchdog (restarts the service while the app process
+  // is alive — every 2 min).
   await ServiceWatchdog.startWatchdog();
+
+  // Register the OS-level keep-alive worker. This is what survives a FULL
+  // process kill and device reboot: Android's JobScheduler persists it and
+  // re-fires it (~every 15 min) to restart the service even if the app is never
+  // reopened. Without this, an OEM/Doze process kill leaves nothing to bring
+  // the service back until the user manually opens the app.
+  await WorkManagerService.initialize();
 
   // ProviderScope makes Riverpod providers available to the whole app.
   runApp(const ProviderScope(child: MyApp()));

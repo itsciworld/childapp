@@ -1,9 +1,13 @@
 import 'package:flexi_form_field/flexi_form_field.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vigil1/core/appColor/app_theme/app_gradient.dart';
 import 'package:vigil1/core/appimages/app_images.dart';
+import 'package:vigil1/core/config/legal_links.dart';
+import 'package:vigil1/core/utils/validators.dart';
 import 'package:vigil1/core/widgets/custom_button.dart';
+import 'package:vigil1/core/widgets/in_app_web_view_page.dart';
 
 import '../../../navigation_helper.dart';
 import '../viewmodel/login_state.dart';
@@ -23,6 +27,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _acceptedTerms = false;
 
   static const Color _darkNavy = Color(0xFF1A237E);
   static const Color _accentGreen = Color(0xFF15BEB5);
@@ -46,6 +51,18 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   void _onSignIn() {
     FocusScope.of(context).unfocus();
     if (!(_formKey.currentState?.validate() ?? false)) return;
+    if (!_acceptedTerms) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Please accept the Terms & Conditions and Privacy Policy',
+            ),
+          ),
+        );
+      return;
+    }
 
     ref.read(loginViewModelProvider.notifier).login(
           email: _emailController.text.trim(),
@@ -147,7 +164,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                   isEmail: true,
                                   isMandatory: true,
                                   denySpace: true,
+                                  validator: Validators.email,
                                   keyboardType: TextInputType.emailAddress,
+                                  maxLength: 254,
                                   fieldStyle: FlexiFieldStyle.outline,
                                   theme: _fieldTheme,
                                   prefixIcon: Icon(
@@ -165,6 +184,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                   hint: 'Enter Parent Password',
                                   obscureText: _obscurePassword,
                                   isMandatory: true,
+                                  denySpace: true,
+                                  validator: Validators.password,
+                                  maxLength: 64,
                                   fieldStyle: FlexiFieldStyle.outline,
                                   theme: _fieldTheme,
                                   prefixIcon: Icon(
@@ -186,65 +208,83 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                     },
                                   ),
                                 ),
-                                SizedBox(height: vGapMd * 1.4),
+                                SizedBox(height: vGapMd),
+                                _TermsConsent(
+                                  value: _acceptedTerms,
+                                  accentColor: _accentBlue,
+                                  onChanged: (v) =>
+                                      setState(() => _acceptedTerms = v),
+                                ),
+                                SizedBox(height: vGapMd * 0.8),
                                 CustomButton(
                                   label: 'Sign In',
                                   isLoading: state.isLoading,
                                   height: screenH * 0.055,
-                                  gradient: AppGradients.primaryButton,
-                                  onTap: state.isLoading ? null : _onSignIn,
+                                  gradient: _acceptedTerms
+                                      ? AppGradients.primaryButton
+                                      : const LinearGradient(
+                                          colors: [
+                                            Color(0xFFBDBDBD),
+                                            Color(0xFFBDBDBD),
+                                          ],
+                                          begin: Alignment.centerLeft,
+                                          end: Alignment.centerRight,
+                                        ),
+                                  onTap: (state.isLoading || !_acceptedTerms)
+                                      ? null
+                                      : _onSignIn,
                                 ),
                                 SizedBox(height: vGapMd),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                        child: Divider(
-                                            color: Colors.grey.shade300)),
-                                    const Padding(
-                                      padding:
-                                          EdgeInsets.symmetric(horizontal: 12),
-                                      child: Text(
-                                        'OR',
-                                        style: TextStyle(
-                                          color: Color(0xFF9E9E9E),
-                                          fontSize: 13,
-                                        ),
-                                      ),
-                                    ),
-                                    Expanded(
-                                        child: Divider(
-                                            color: Colors.grey.shade300)),
-                                  ],
-                                ),
-                                SizedBox(height: vGapMd),
-                                Center(
-                                  child: GestureDetector(
-                                    onTap: state.isLoading
-                                        ? null
-                                        : () => Nav.toPairing(context,
-                                            _emailController.text.trim()),
-                                    child: const Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          'Have a pairing code? ',
-                                          style: TextStyle(
-                                            fontSize: 13.5,
-                                            color: Colors.black87,
-                                          ),
-                                        ),
-                                        Text(
-                                          'Pair device',
-                                          style: TextStyle(
-                                            fontSize: 13.5,
-                                            color: _accentGreen,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
+                                // Row(
+                                //   children: [
+                                //     Expanded(
+                                //         child: Divider(
+                                //             color: Colors.grey.shade300)),
+                                //     const Padding(
+                                //       padding:
+                                //           EdgeInsets.symmetric(horizontal: 12),
+                                //       child: Text(
+                                //         'OR',
+                                //         style: TextStyle(
+                                //           color: Color(0xFF9E9E9E),
+                                //           fontSize: 13,
+                                //         ),
+                                //       ),
+                                //     ),
+                                //     Expanded(
+                                //         child: Divider(
+                                //             color: Colors.grey.shade300)),
+                                //   ],
+                                // ),
+                                // SizedBox(height: vGapMd),
+                                // Center(
+                                //   child: GestureDetector(
+                                //     onTap: state.isLoading
+                                //         ? null
+                                //         : () => Nav.toPairing(context,
+                                //             _emailController.text.trim()),
+                                //     child: const Row(
+                                //       mainAxisSize: MainAxisSize.min,
+                                //       children: [
+                                //         Text(
+                                //           'Have a pairing code? ',
+                                //           style: TextStyle(
+                                //             fontSize: 13.5,
+                                //             color: Colors.black87,
+                                //           ),
+                                //         ),
+                                //         Text(
+                                //           'Pair device',
+                                //           style: TextStyle(
+                                //             fontSize: 13.5,
+                                //             color: _accentGreen,
+                                //             fontWeight: FontWeight.w700,
+                                //           ),
+                                //         ),
+                                //       ],
+                                //     ),
+                                //   ),
+                                // ),
                                 SizedBox(height: vGapMd),
                               ],
                             ),
@@ -329,6 +369,115 @@ class _Blob extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Terms & privacy consent
+// ---------------------------------------------------------------------------
+
+/// Checkbox the parent must tick before signing in. The document names are
+/// tappable and open inside the app rather than the system browser.
+class _TermsConsent extends StatefulWidget {
+  const _TermsConsent({
+    required this.value,
+    required this.onChanged,
+    required this.accentColor,
+  });
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final Color accentColor;
+
+  @override
+  State<_TermsConsent> createState() => _TermsConsentState();
+}
+
+class _TermsConsentState extends State<_TermsConsent> {
+  // Recognizers are long-lived and must be disposed, so they're built once
+  // here instead of inside build().
+  late final TapGestureRecognizer _termsTap;
+  late final TapGestureRecognizer _privacyTap;
+
+  @override
+  void initState() {
+    super.initState();
+    _termsTap = TapGestureRecognizer()
+      ..onTap = () => InAppWebViewPage.open(
+            context,
+            url: LegalLinks.termsAndConditions,
+            title: 'Terms and Conditions',
+          );
+    _privacyTap = TapGestureRecognizer()
+      ..onTap = () => InAppWebViewPage.open(
+            context,
+            url: LegalLinks.privacyPolicy,
+            title: 'Privacy Policy',
+          );
+  }
+
+  @override
+  void dispose() {
+    _termsTap.dispose();
+    _privacyTap.dispose();
+    super.dispose();
+  }
+
+  TextSpan _link(String text, TapGestureRecognizer recognizer) {
+    return TextSpan(
+      text: text,
+      style: TextStyle(
+        color: widget.accentColor,
+        fontWeight: FontWeight.w700,
+        decoration: TextDecoration.underline,
+        decorationColor: widget.accentColor,
+      ),
+      recognizer: recognizer,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 24,
+          height: 24,
+          child: Checkbox(
+            value: widget.value,
+            visualDensity: VisualDensity.compact,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            activeColor: widget.accentColor,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(4),
+            ),
+            onChanged: (v) => widget.onChanged(v ?? false),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: RichText(
+              text: TextSpan(
+                style: TextStyle(
+                  fontSize: 12.5,
+                  height: 1.4,
+                  color: Colors.grey.shade700,
+                ),
+                children: [
+                  const TextSpan(text: 'I accept the '),
+                  _link('Terms and Conditions', _termsTap),
+                  const TextSpan(text: ' and '),
+                  _link('Privacy Policy', _privacyTap),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

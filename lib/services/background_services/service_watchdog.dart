@@ -50,9 +50,18 @@ class ServiceWatchdog {
     debugPrint('[ServiceWatchdog] 🐕 Watchdog stopped');
   }
 
+  /// Timer target for the in-process watchdog. Delegates to
+  /// [ensureServiceHealthy] so the exact same check-and-restart logic is shared
+  /// with the out-of-process [WorkManager] keep-alive worker.
+  static Future<void> _checkServiceHealth() => ensureServiceHealthy();
+
   /// Check if the background service is alive by examining its heartbeat.
   /// If the service appears dead, attempt to restart it.
-  static Future<void> _checkServiceHealth() async {
+  ///
+  /// This is safe to call from ANY isolate (the in-process watchdog timer OR the
+  /// WorkManager background isolate). It only touches [SharedPreferences] and the
+  /// [FlutterBackgroundService] method channel, both of which work cross-isolate.
+  static Future<void> ensureServiceHealthy() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.reload();

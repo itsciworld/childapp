@@ -1,5 +1,6 @@
 # Uncomment this line to define a global platform for your project
-platform :ios, '13.0'
+# Bumped to 15.5 (matches the Xcode project) — workmanager_apple needs iOS 14.0+.
+platform :ios, '15.5'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
@@ -37,5 +38,10 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
+    # Force every pod to the same minimum so a plugin (e.g. workmanager_apple)
+    # can't be built against a lower target than the app.
+    target.build_configurations.each do |config|
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.5'
+    end
   end
 end

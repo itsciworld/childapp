@@ -20,11 +20,6 @@ class Nav {
     Navigator.pushNamed(context, RouteNames.register);
   }
 
-  /// Navigate to terms
-  static void toTerms(BuildContext context) {
-    Navigator.pushNamed(context, RouteNames.terms);
-  }
-
   /// Navigate to OTP page.
   ///
   /// [token] is optional — the login-and-send-otp step does not return one;

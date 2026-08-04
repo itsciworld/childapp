@@ -1,10 +1,13 @@
 package com.example.vigil1
 
 import android.accessibilityservice.AccessibilityService
+import android.os.SystemClock
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import org.json.JSONObject
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 /**
  * FEATURE B — On-screen capture.
@@ -26,21 +29,45 @@ class VigilAccessibilityService : AccessibilityService() {
         private const val TAG = "VigilA11y"
         private const val FILE = "a11y_queue.jsonl"
         private const val MAX_DEPTH = 60
+
+        /** Coalesce bursts of high-frequency events (content-changed / scroll)
+         *  so we walk the view tree at most once per window. Window *state*
+         *  changes (a new chat opening) bypass this and are always handled. */
+        private const val THROTTLE_MS = 500L
     }
 
+    /** Single background thread that owns every tree-walk + file write, so the
+     *  main (accessibility) thread returns immediately and Android never flags
+     *  the service as unresponsive and disables it. */
+    private val worker: ExecutorService = Executors.newSingleThreadExecutor()
+
+    @Volatile private var lastHandledAt = 0L
+
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        try {
-            val e = event ?: return
-            val pkg = e.packageName?.toString() ?: return
-            if (!SocialApps.isTarget(pkg)) return
+        val e = event ?: return
+        // Extract everything we need *now* — the event is recycled once this
+        // returns, so nothing about it may be touched on the worker thread.
+        val pkg = e.packageName?.toString() ?: return
+        if (!SocialApps.isTarget(pkg)) return
 
-            when (e.eventType) {
-                AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
-                AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
-                AccessibilityEvent.TYPE_VIEW_SCROLLED -> Unit
-                else -> return
+        when (e.eventType) {
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> Unit // always handle
+            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
+            AccessibilityEvent.TYPE_VIEW_SCROLLED -> {
+                val now = SystemClock.uptimeMillis()
+                if (now - lastHandledAt < THROTTLE_MS) return
+                lastHandledAt = now
             }
+            else -> return
+        }
 
+        worker.execute { capture(pkg) }
+    }
+
+    /** Runs on [worker]: reads the live view tree and appends to the queue.
+     *  `rootInActiveWindow` is safe to read off the main thread. */
+    private fun capture(pkg: String) {
+        try {
             val root = rootInActiveWindow ?: return
             val texts = ArrayList<String>()
             collectText(root, texts, 0)
@@ -72,6 +99,11 @@ class VigilAccessibilityService : AccessibilityService() {
         } catch (t: Throwable) {
             Log.w(TAG, "capture failed", t)
         }
+    }
+
+    override fun onDestroy() {
+        worker.shutdownNow()
+        super.onDestroy()
     }
 
     private fun collectText(node: AccessibilityNodeInfo?, out: MutableList<String>, depth: Int) {

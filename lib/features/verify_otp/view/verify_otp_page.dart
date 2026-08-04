@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vigil1/core/appColor/app_theme/app_gradient.dart';
 import 'package:vigil1/core/appimages/app_images.dart';
+import 'package:vigil1/core/utils/validators.dart';
 import 'package:vigil1/core/widgets/custom_button.dart';
 
 import '../../../navigation_helper.dart';
@@ -198,6 +199,7 @@ class _VerifyOtpPageState extends ConsumerState<VerifyOtpPage> {
                                     FilteringTextInputFormatter.digitsOnly,
                                   ],
                                   maxLength: 6,
+                                  validator: Validators.otp,
                                   fieldStyle: FlexiFieldStyle.outline,
                                   theme: _fieldTheme,
                                   prefixIcon: Icon(
@@ -214,6 +216,14 @@ class _VerifyOtpPageState extends ConsumerState<VerifyOtpPage> {
                                   controller: _nameController,
                                   hint: 'Enter child’s name',
                                   isMandatory: true,
+                                  keyboardType: TextInputType.name,
+                                  maxLength: 50,
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.allow(
+                                      RegExp(r"[A-Za-zÀ-ÖØ-öø-ÿ .'-]"),
+                                    ),
+                                  ],
+                                  validator: Validators.childName,
                                   fieldStyle: FlexiFieldStyle.outline,
                                   theme: _fieldTheme,
                                   prefixIcon: Icon(
@@ -234,7 +244,8 @@ class _VerifyOtpPageState extends ConsumerState<VerifyOtpPage> {
                                   inputFormatters: [
                                     FilteringTextInputFormatter.digitsOnly,
                                   ],
-                                  maxLength: 2,
+                                  maxLength: 3,
+                                  validator: Validators.childAge,
                                   fieldStyle: FlexiFieldStyle.outline,
                                   theme: _fieldTheme,
                                   prefixIcon: Icon(

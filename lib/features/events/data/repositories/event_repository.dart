@@ -126,11 +126,19 @@ class EventRepository {
       debugPrint('$_tag store_events response '
           '(${response.statusCode}): ${response.data}');
 
+      // We only get here on a 2xx — a DioException (non-2xx / network) is
+      // caught below. So the upload DID reach the backend. If the body isn't the
+      // JSON object we expect (empty body, array, differently-typed map), treat
+      // it as a bare success rather than throwing: throwing here would make the
+      // sync pass record no liveness (tile stuck on "Starting…") AND skip
+      // marking these ids synced, so the same events re-upload every pass.
       final data = response.data;
-      if (data is! Map<String, dynamic>) {
-        throw const ApiException('Unexpected response from the server.');
+      if (data is Map) {
+        return StoreEventsResponse.fromJson(Map<String, dynamic>.from(data));
       }
-      return StoreEventsResponse.fromJson(data);
+      debugPrint('$_tag store_events: 2xx with non-object body — '
+          'treating as success.');
+      return const StoreEventsResponse();
     } on DioException catch (e) {
       debugPrint('$_tag store_events failed: '
           '${e.response?.statusCode} ${e.response?.data ?? e.message}');

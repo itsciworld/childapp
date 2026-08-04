@@ -35,6 +35,8 @@ dependencies:
   flexi_form_field: ^3.0.4
   device_calendar_plus: ^0.4.0
   installed_apps: ^2.1.1
+  workmanager: ^0.9.0+3
+  webview_flutter: ^4.14.1
   
 dev_dependencies:
   flutter_test:

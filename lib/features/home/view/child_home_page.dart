@@ -293,7 +293,7 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
         );
 
         Navigator.of(context).pushNamedAndRemoveUntil(
-          RouteNames.terms,
+          RouteNames.login,
           (route) => false,
         );
         ref.read(logoutViewModelProvider.notifier).reset();
@@ -1159,14 +1159,17 @@ class _StatusChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 9,
-            height: 9,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: view.color,
-            ),
-          ),
+          // A live stream gets a breathing glow; everything else a static dot.
+          view.live
+              ? _PulsingDot(color: view.color)
+              : Container(
+                  width: 9,
+                  height: 9,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: view.color,
+                  ),
+                ),
           const SizedBox(width: 6),
           Text(
             view.label,
@@ -1178,6 +1181,75 @@ class _StatusChip extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// A self-animating status dot that softly pulses a halo — used on tiles whose
+/// stream is live, to signal active monitoring at a glance. Owns its own ticker
+/// so it works anywhere without a parent animation being threaded through.
+class _PulsingDot extends StatefulWidget {
+  const _PulsingDot({required this.color});
+
+  final Color color;
+
+  @override
+  State<_PulsingDot> createState() => _PulsingDotState();
+}
+
+class _PulsingDotState extends State<_PulsingDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c;
+
+  @override
+  void initState() {
+    super.initState();
+    _c = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (context, child) {
+        final t = _c.value; // 0 → 1 → 0
+        return SizedBox(
+          width: 14,
+          height: 14,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Expanding, fading halo.
+              Container(
+                width: 9 + 5 * t,
+                height: 9 + 5 * t,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: widget.color.withValues(alpha: 0.35 * (1 - t)),
+                ),
+              ),
+              // Solid core.
+              Container(
+                width: 9,
+                height: 9,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: widget.color,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

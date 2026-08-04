@@ -7,7 +7,6 @@ import 'features/pairing/view/pairing_page.dart';
 import 'features/permissions/view/permissions_page.dart';
 import 'features/permissions/view/permissions_settings_page.dart';
 import 'features/home/view/child_home_page.dart';
-import 'pages/terms_page.dart';
 import 'pages/welcome_page.dart';
 import 'pages/allowpermission_page.dart';
 import 'services/finalmonitoring_page.dart';
@@ -19,7 +18,6 @@ class AppRoutes {
         // Main routes
         RouteNames.home: (context) => const SplashView(),
         RouteNames.login: (context) => const LoginPage(),
-        RouteNames.terms: (context) => const TermsPage(),
         RouteNames.welcome: (context) => _buildWelcomePage(context),
 
         // Setup flow

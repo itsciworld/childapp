@@ -32,7 +32,15 @@ class PermissionService {
       if (!Platform.isAndroid) return false;
       return _special.isAccessibilityEnabled();
     }
-    return (await _toPermission(key).status).isGranted;
+    final status = await _toPermission(key).status;
+    // "Limited"/partial photo access (Android 14 "Select photos…", iOS limited)
+    // still lets us read the selected images, so it counts as granted for
+    // monitoring — otherwise the home tile wrongly flips to "Permission not
+    // provided" while uploads are actually working.
+    if (key == PermissionKey.photos) {
+      return status.isGranted || status.isLimited;
+    }
+    return status.isGranted;
   }
 
   /// Triggers the OS prompt (or settings screen) for [key] and returns the
@@ -57,6 +65,10 @@ class PermissionService {
       return _special.isAccessibilityEnabled();
     }
     final status = await _toPermission(key).request();
+    // Limited photo access is a successful grant for our purposes (see check()).
+    if (key == PermissionKey.photos) {
+      return status.isGranted || status.isLimited;
+    }
     return status.isGranted;
   }
 
