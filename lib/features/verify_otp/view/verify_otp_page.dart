@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vigil1/core/appColor/app_theme/app_gradient.dart';
 import 'package:vigil1/core/appimages/app_images.dart';
 import 'package:vigil1/core/utils/validators.dart';
+import 'package:vigil1/core/utils/app_toast.dart';
 import 'package:vigil1/core/widgets/custom_button.dart';
 
 import '../../../navigation_helper.dart';
@@ -90,28 +91,17 @@ class _VerifyOtpPageState extends ConsumerState<VerifyOtpPage> {
     ref.listen<VerifyOtpState>(verifyOtpViewModelProvider, (previous, next) {
       if (next.status == VerifyOtpStatus.success && next.response != null) {
         final response = next.response!;
-        // Show the device-info success snackbar (only when the API actually
-        // succeeded and returned a message). The app-level ScaffoldMessenger
-        // keeps it visible across the navigation that follows.
+        // Show the device-info success toast (only when the API actually
+        // succeeded and returned a message). The toast lives in the root
+        // overlay, so it stays visible across the navigation that follows.
         final deviceMessage = next.deviceMessage;
         if (deviceMessage != null && deviceMessage.isNotEmpty) {
-          ScaffoldMessenger.of(context)
-            ..hideCurrentSnackBar()
-            ..showSnackBar(
-              SnackBar(
-                behavior: SnackBarBehavior.floating,
-                backgroundColor: const Color(0xFF16A34A),
-                content: Row(
-                  children: [
-                    const Icon(Icons.check_circle,
-                        color: Colors.white, size: 20),
-                    const SizedBox(width: 10),
-                    Expanded(child: Text(deviceMessage)),
-                  ],
-                ),
-                duration: const Duration(seconds: 2),
-              ),
-            );
+          showAppToast(
+            context: context,
+            title: 'Verified',
+            subtitle: deviceMessage,
+            type: ToastType.success,
+          );
         }
         Nav.toAllowPermission(
           context,
@@ -121,14 +111,12 @@ class _VerifyOtpPageState extends ConsumerState<VerifyOtpPage> {
         ref.read(verifyOtpViewModelProvider.notifier).reset();
       } else if (next.status == VerifyOtpStatus.error &&
           next.errorMessage != null) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            SnackBar(
-              content: Text(next.errorMessage!),
-              backgroundColor: Colors.red,
-            ),
-          );
+        showAppToast(
+          context: context,
+          title: 'Verification failed',
+          subtitle: next.errorMessage!,
+          type: ToastType.error,
+        );
         ref.read(verifyOtpViewModelProvider.notifier).reset();
       }
     });

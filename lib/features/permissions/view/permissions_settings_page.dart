@@ -77,14 +77,15 @@ class _PermissionsSettingsPageState
 
   @override
   Widget build(BuildContext context) {
-    // Surface load failures as a toast.
+    // Surface any failure — load OR the per-toggle auto-save — as an error
+    // toast whenever the message changes to a new value.
     ref.listen(permissionsSettingsViewModelProvider, (prev, next) {
-      final wasLoading = prev?.loading ?? false;
-      if (wasLoading && !next.loading && next.errorMessage != null) {
+      final msg = next.errorMessage;
+      if (msg != null && msg.isNotEmpty && msg != prev?.errorMessage) {
         showAppToast(
           context: context,
           title: 'Error',
-          subtitle: next.errorMessage!,
+          subtitle: msg,
           type: ToastType.error,
         );
       }

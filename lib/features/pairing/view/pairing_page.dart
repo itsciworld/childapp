@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/utils/app_toast.dart';
 import '../../../navigation_helper.dart';
 import '../viewmodel/pairing_state.dart';
 import '../viewmodel/pairing_viewmodel.dart';
@@ -67,29 +68,24 @@ class _PairingPageState extends ConsumerState<PairingPage> {
     // React to state changes for side effects (navigation / snackbars).
     ref.listen<PairingState>(pairingViewModelProvider, (previous, next) {
       if (next.status == PairingStatus.success) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            SnackBar(
-              content: Text(
-                next.response?.message ?? 'Pairing code verified successfully',
-              ),
-              backgroundColor: Colors.green,
-            ),
-          );
+        showAppToast(
+          context: context,
+          title: 'Success',
+          subtitle:
+              next.response?.message ?? 'Pairing code verified successfully',
+          type: ToastType.success,
+        );
         // The pairing API returns no childId/token — pass empty placeholders.
         Nav.toAllowPermission(context, '', '');
         ref.read(pairingViewModelProvider.notifier).reset();
       } else if (next.status == PairingStatus.error &&
           next.errorMessage != null) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            SnackBar(
-              content: Text(next.errorMessage!),
-              backgroundColor: Colors.red,
-            ),
-          );
+        showAppToast(
+          context: context,
+          title: 'Pairing failed',
+          subtitle: next.errorMessage!,
+          type: ToastType.error,
+        );
         ref.read(pairingViewModelProvider.notifier).reset();
       }
     });

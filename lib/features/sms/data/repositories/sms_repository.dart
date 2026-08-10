@@ -20,14 +20,22 @@ class SmsRepository {
   final DeviceStorage _deviceStorage;
   final SmsQuery _query = SmsQuery();
 
+  /// Whether `READ_SMS` is currently granted.
+  ///
+  /// Callers need this to tell "nothing new to upload" apart from "can't read
+  /// the inbox at all" — [readDeviceSms] answers both with an empty list, so
+  /// without this probe a denied permission looked exactly like a healthy,
+  /// fully-caught-up sync and the home tile stayed green.
+  Future<bool> hasSmsPermission() => Permission.sms.isGranted;
+
   /// Reads device messages (inbox + sent) and maps them into upload-ready
   /// [SmsEntry]s, **sorted oldest-first**. The child / parent ids are no longer
   /// carried per entry — they are sent once at the top level by [storeSms].
   ///
   /// Incremental behaviour:
-  /// - When [since] is given, only messages strictly newer than it are
-  ///   returned — this is the watermark that prevents re-uploading messages
-  ///   already sent on a previous app session.
+  /// - When [since] is given, only messages at or newer than it are returned —
+  ///   this is the watermark that prevents re-uploading messages already sent
+  ///   on a previous app session.
   /// - When [since] is `null` (first ever sync on this device) only the most
   ///   recent [fetchLimit] messages are returned, so the very first upload
   ///   doesn't dump the entire history.
@@ -58,8 +66,16 @@ class SmsRepository {
 
     List<SmsMessage> selected;
     if (since != null) {
+      // `>=`, not a strict `isAfter`. The watermark is the timestamp of the
+      // last message we uploaded, and SMS timestamps collide constantly —
+      // multipart messages and bulk OTP / promo bursts all land on the same
+      // millisecond. A strict `isAfter` dropped every sibling sharing the
+      // watermark's millisecond, permanently: the next pass filtered them out
+      // before they were ever sent. Re-offering the boundary message costs
+      // nothing, because the server de-duplicates on the device-local `id` and
+      // reports it back in `duplicates`.
       selected = messages
-          .where((m) => m.date != null && m.date!.isAfter(since))
+          .where((m) => m.date != null && !m.date!.isBefore(since))
           .toList();
     } else {
       // First sync: take everything fetched (oldest-first); the caller uploads
@@ -143,6 +159,16 @@ class SmsRepository {
             if (deviceKey != null && deviceKey.isNotEmpty)
               'x-device-key': deviceKey,
           },
+          // This is the one bulk write in the app: every other endpoint sends a
+          // single small object, while this posts a whole batch of message
+          // bodies that the server de-duplicates row by row. On the shared 35s
+          // timeout it was the only call that ever timed out, and because the
+          // watermark only moves after a success, each timeout re-sent the same
+          // batch forever. Smaller batches are the real fix (see
+          // SmsSyncService._batchSize); the longer ceiling here just stops a
+          // merely-slow server from being cut off mid-write.
+          sendTimeout: const Duration(seconds: 60),
+          receiveTimeout: const Duration(seconds: 60),
         ),
       );
 

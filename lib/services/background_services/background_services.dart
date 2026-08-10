@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/config/env_config.dart';
@@ -41,7 +42,7 @@ class SyncIntervals {
   static const Duration callLogs = Duration(seconds: 8);
 
   /// Contacts - 10min is appropriate since contact changes are infrequent.
-  static const Duration contacts = Duration(minutes: 2);
+  static const Duration contacts = Duration(minutes: 1);
 
   /// Calendar events change infrequently, so 15min scan is optimal. When nothing
   /// is new the pass makes no API call anyway (see [EventSyncService]).
@@ -49,7 +50,7 @@ class SyncIntervals {
 
   /// Live status (battery + connectivity) - increased from 30s to 1min to reduce
   /// wake-ups. Still provides near-real-time status while being Android-friendly.
-  static const Duration liveStatus = Duration(seconds: 10);
+  static const Duration liveStatus = Duration(seconds: 13);
 
   /// Location check interval - increased from 10s to 1min. This is still very
   /// responsive because the actual upload is gated by a 500m distance filter +
@@ -87,6 +88,47 @@ class BackgroundService {
   static const notificationId = 888;
   static const notificationChannelId = 'my_foreground';
 
+  /// Remembers which foreground-service types the service was last configured
+  /// with, so [refreshForegroundServiceTypes] only recycles it when they change.
+  static const _fgsTypesKey = 'fgs_types_signature';
+
+  /// Which foreground-service types to claim, based on what the child has
+  /// actually granted right now.
+  ///
+  /// WHY THIS EXISTS — this was the cause of the
+  /// `ForegroundServiceDidNotStartInTimeException` crash loop:
+  ///
+  /// The manifest declares `android:foregroundServiceType="location|specialUse"`,
+  /// and when no types are passed here the plugin falls back to
+  /// `FOREGROUND_SERVICE_TYPE_MANIFEST` — i.e. it claims *both*. On Android 14
+  /// (targetSdk 34) `startForeground()` verifies each claimed type against a
+  /// granted runtime permission, and `location` requires ACCESS_FINE_LOCATION /
+  /// ACCESS_COARSE_LOCATION. On a fresh install the service starts from `main()`
+  /// long before the permissions screen, so that check failed with a
+  /// SecurityException — which flutter_background_service *swallows* (see
+  /// `BackgroundService.updateNotificationInfo`). The service therefore kept
+  /// running but never entered the foreground, and ~5s later Android killed the
+  /// process. The plugin's own `WatchdogReceiver` alarm then restarted it, which
+  /// is why it crashed again and again.
+  ///
+  /// Claiming only the types we can back with a permission keeps
+  /// `startForeground()` succeeding at every stage of onboarding. `specialUse`
+  /// is always safe: it needs no runtime permission, only the
+  /// PROPERTY_SPECIAL_USE_FGS_SUBTYPE declaration already in the manifest.
+  static Future<List<AndroidForegroundType>> _foregroundServiceTypes() async {
+    final types = <AndroidForegroundType>[AndroidForegroundType.specialUse];
+    try {
+      if (await Permission.location.isGranted) {
+        types.insert(0, AndroidForegroundType.location);
+      }
+    } catch (e) {
+      // Never let a permission lookup stop the service from starting — the
+      // specialUse-only list below is always valid.
+      debugPrint('[BackgroundService] ⚠️ Location permission check failed: $e');
+    }
+    return types;
+  }
+
   static Future<void> initializeService() async {
     final service = FlutterBackgroundService();
 
@@ -107,15 +149,28 @@ class BackgroundService {
         ?.createNotificationChannel(channel);
 
     // 2. Configure the Service
+    final types = await _foregroundServiceTypes();
     await service.configure(
       androidConfiguration: AndroidConfiguration(
         onStart: onStart, // Entry point function
-        autoStart: true,
+        // `autoStart: true` made configure() bring the service up itself, which
+        // raced with the explicit startService() below and could spawn a SECOND
+        // background isolate — and two isolates each ran their own loop,
+        // querying the `call_log` plugin concurrently (it allows only one query
+        // at a time → ALREADY_RUNNING / "Reply already submitted"). Starting it
+        // from exactly one place keeps it to a single isolate.
+        autoStart: false,
+        // Reboots are covered by the plugin's BootReceiver, which reads this
+        // flag and not `autoStart` — so turning autoStart off costs nothing.
+        autoStartOnBoot: true,
         isForegroundMode: true,
         notificationChannelId: notificationChannelId,
         initialNotificationTitle: 'Vigil Active',
         initialNotificationContent: 'Monitoring is running in background',
         foregroundServiceNotificationId: notificationId,
+        // Only the types we can back with a granted permission — see
+        // [_foregroundServiceTypes] for why omitting this crashed the app.
+        foregroundServiceTypes: types,
       ),
       iosConfiguration: IosConfiguration(
         autoStart: true,
@@ -124,16 +179,52 @@ class BackgroundService {
       ),
     );
 
-    // Only start if it isn't already running. `autoStart: true` already brings
-    // the service up after configure / on boot, so calling startService()
-    // unconditionally spawned a SECOND background isolate — and two isolates
-    // each ran their own 5s loop, querying the `call_log` plugin concurrently
-    // (it allows only one query at a time → ALREADY_RUNNING / "Reply already
-    // submitted"). Guarding on isRunning() keeps it to a single isolate.
+    // Record what we just configured so [refreshForegroundServiceTypes] can tell
+    // whether a later permission grant actually changed anything.
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_fgsTypesKey, _signature(types));
+
     if (!await service.isRunning()) {
-      await service.startService();
+      try {
+        await service.startService();
+      } catch (e) {
+        // Android 12+ can refuse a foreground start made from the background
+        // (ForegroundServiceStartNotAllowedException). That must not take the
+        // whole app down at launch — the watchdog retries later.
+        debugPrint('[BackgroundService] ❌ startService failed: $e');
+      }
     }
   }
+
+  /// Re-applies the foreground-service types after the child grants (or revokes)
+  /// location, so the service can start claiming the `location` type and keep
+  /// reading position while the app is backgrounded on Android 14+.
+  ///
+  /// The native side reads the type list once, in `Service.onCreate`, so
+  /// re-running `configure()` alone has no effect on the live service — it has
+  /// to be recycled. This no-ops when the types are unchanged, so it is safe to
+  /// call after any permission toggle.
+  static Future<void> refreshForegroundServiceTypes() async {
+    final signature = _signature(await _foregroundServiceTypes());
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    if (prefs.getString(_fgsTypesKey) == signature) return;
+
+    debugPrint(
+        '[BackgroundService] 🔄 Foreground service types changed → $signature, recycling service');
+
+    final service = FlutterBackgroundService();
+    if (await service.isRunning()) {
+      service.invoke('stopService');
+      // onDestroy tears the isolate down asynchronously; wait for it so the
+      // restart below creates a fresh Service (onCreate re-reads the types).
+      await Future.delayed(const Duration(seconds: 2));
+    }
+    await initializeService();
+  }
+
+  static String _signature(List<AndroidForegroundType> types) =>
+      types.map((t) => t.name).join(',');
 }
 
 // Guards against a duplicate `onStart` wiring up a second set of timers in the
@@ -194,6 +285,12 @@ void onStart(ServiceInstance service) async {
     _SyncJob('socialScreen', SyncIntervals.socialAccessibility,
         screenCaptureSync.sync),
   ];
+  // Claim the lease and keep it fresh on a fixed cadence, independent of how
+  // long any individual job takes. Started BEFORE the jobs so the first tick
+  // already has a settled leader instead of racing for it.
+  await _claimLeadership();
+  _startLeadershipRenewal();
+
   for (final job in jobs) {
     job.start();
   }
@@ -270,11 +367,13 @@ class _SyncJob {
     }
     _busy = true;
     debugPrint('[$name] ⏰ Timer tick - starting sync');
+    var ran = false;
     try {
       if (!await _claimLeadership()) {
         debugPrint('[$name] 🔒 Another isolate is leader, skipping');
         return; // another isolate owns syncing
       }
+      ran = true;
       debugPrint('[$name] 👑 Leadership claimed, executing sync');
       await _run();
     } catch (e, st) {
@@ -283,7 +382,11 @@ class _SyncJob {
       debugPrint('[$name] ❌ Sync failed with error: $e\n$st');
     } finally {
       _busy = false;
-      debugPrint('[$name] ✓ Sync completed, ready for next tick');
+      // Don't claim a sync "completed" when it was skipped — that line made the
+      // logs read as if every stream was healthy while nothing was uploading.
+      debugPrint(ran
+          ? '[$name] ✓ Sync completed, ready for next tick'
+          : '[$name] ⤼ Tick ended without syncing');
     }
   }
 }
@@ -292,16 +395,44 @@ class _SyncJob {
 // Top-level isolate guards don't span isolates (separate memory), and the OS
 // can keep more than one background isolate alive. The one piece of state both
 // isolates CAN see is SharedPreferences, so we elect a single leader through it:
-// only the leader runs the syncs. The leader renews its lease each run; if it
-// dies, another isolate takes over after [_leaderStaleMs].
+// only the leader runs the syncs. The leader renews its lease on a dedicated
+// timer; if it dies, another isolate takes over after [_leaderStaleMs].
 const String _leaderIdKey = 'sync_leader_id';
 const String _leaderBeatKey = 'sync_leader_beat_ms';
-// Must be comfortably LARGER than the fastest job interval (15s), otherwise the
-// lease expires before a job renews it and leadership churns between isolates
-// (dropped/missed sync passes). 45s = 3× the renewal cadence, so the lease
-// stays valid between renewals while still failing over within a minute if the
-// leader isolate actually dies.
-const int _leaderStaleMs = 45000;
+
+/// How often the leader refreshes its lease, on its own timer.
+///
+/// Renewal used to ride on job execution, which coupled the lease to how long a
+/// job took. That is why the window below had to be so generous — and the
+/// generous window is what made every isolate death cost a long blackout: a
+/// surviving isolate logged `🔒 Another isolate is leader, skipping` and sent
+/// NOTHING until the dead leader's lease finally expired. Live status has no
+/// backlog to catch up on, so that blackout is visible to the parent directly
+/// as the child dropping offline and coming back.
+const int _leaderRenewMs = 5000;
+
+/// How long a lease survives without renewal before another isolate may seize
+/// it — i.e. the worst-case gap after the leader dies. 3× [_leaderRenewMs], so
+/// two renewals can be missed before failover, and takeover happens in seconds
+/// instead of the 45s this used to be.
+const int _leaderStaleMs = 15000;
+
+/// Renews (or seizes) the lease on a fixed cadence, independently of the jobs.
+Timer? _leaderRenewTimer;
+
+void _startLeadershipRenewal() {
+  _leaderRenewTimer?.cancel();
+  _leaderRenewTimer = Timer.periodic(
+    const Duration(milliseconds: _leaderRenewMs),
+    (_) async {
+      try {
+        await _claimLeadership();
+      } catch (e) {
+        debugPrint('[leader] ⚠️ lease renewal failed: $e');
+      }
+    },
+  );
+}
 
 Future<bool> _claimLeadership() async {
   final prefs = await SharedPreferences.getInstance();

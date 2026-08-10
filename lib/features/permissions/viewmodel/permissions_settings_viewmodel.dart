@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -15,8 +18,19 @@ import 'permissions_state.dart';
 /// Dio or storage directly.
 class PermissionsSettingsViewModel
     extends Notifier<PermissionsSettingsState> {
+  /// Debounce timer for the auto-save that pushes each toggle change to the
+  /// backend without waiting for a "Save Permissions" tap.
+  Timer? _autoSaveTimer;
+
+  /// Guards a single auto-save from overlapping the next (the permissions PUT
+  /// sends the full config, so overlapping calls could land out of order).
+  bool _autoSaveInFlight = false;
+
   @override
-  PermissionsSettingsState build() => const PermissionsSettingsState();
+  PermissionsSettingsState build() {
+    ref.onDispose(() => _autoSaveTimer?.cancel());
+    return const PermissionsSettingsState();
+  }
 
   Future<String?> _childId() async {
     final identity = await ref.read(identityStorageProvider).read();
@@ -72,7 +86,9 @@ class PermissionsSettingsViewModel
   /// Replaces the in-memory config (called by each non-OS toggle, e.g.
   /// Calendar and the Main Permissions / Notification flags, via `copyWith`).
   void update(PermissionsRequest config) {
+    final changed = _configChanged(state.config, config);
     state = state.copyWith(config: config);
+    if (changed) _scheduleAutoSave();
   }
 
   /// Maps each Data Access toggle to the device permission behind it.
@@ -111,9 +127,11 @@ class PermissionsSettingsViewModel
         await service.openSettings();
         granted = await service.check(key);
       }
-      state = state.copyWith(
-        config: _setDataPermission(state.config, key, granted),
-      );
+      final before = state.config;
+      final after = _setDataPermission(before, key, granted);
+      state = state.copyWith(config: after);
+      // Auto-save the change immediately — no "Save Permissions" tap needed.
+      if (_configChanged(before, after)) _scheduleAutoSave();
     } catch (e, st) {
       debugPrint('[PermissionsSettingsViewModel] toggle($key) failed: $e\n$st');
       state = state.copyWith(
@@ -126,9 +144,13 @@ class PermissionsSettingsViewModel
 
   /// Re-reads the live OS grants and reflects them in the config. Called when
   /// the app resumes, so a permission granted/revoked on the system settings
-  /// screen (which returns no callback) updates the Data Access toggles.
+  /// screen (which returns no callback) updates the Data Access toggles —
+  /// auto-saving to the backend whenever the live state actually differs.
   Future<void> refreshOsState() async {
-    state = state.copyWith(config: await _withLiveOsState(state.config));
+    final before = state.config;
+    final after = await _withLiveOsState(before);
+    state = state.copyWith(config: after);
+    if (_configChanged(before, after)) _scheduleAutoSave();
   }
 
   /// Writes [granted] into the Data Access flag that [key] backs.
@@ -209,9 +231,62 @@ class PermissionsSettingsViewModel
     );
   }
 
+  /// True if the two configs differ (compared by their JSON payload, which is
+  /// exactly what gets PUT to the backend).
+  bool _configChanged(PermissionsRequest a, PermissionsRequest b) =>
+      jsonEncode(a.toJson()) != jsonEncode(b.toJson());
+
+  /// Debounced trigger for [_runAutoSave] — coalesces a burst of toggles into a
+  /// single backend PUT.
+  void _scheduleAutoSave() {
+    _autoSaveTimer?.cancel();
+    _autoSaveTimer = Timer(const Duration(milliseconds: 400), _runAutoSave);
+  }
+
+  /// Pushes the current config to the backend without blocking the UI (no big
+  /// Save spinner). If a push is already running, retries shortly so the latest
+  /// state still lands. Failures surface via [state.errorMessage] for a toast.
+  Future<void> _runAutoSave() async {
+    if (_autoSaveInFlight) {
+      _scheduleAutoSave();
+      return;
+    }
+    _autoSaveInFlight = true;
+    try {
+      final childId = await _childId();
+      if (childId == null) {
+        state = state.copyWith(
+          errorMessage: 'Device not paired yet. Please pair again.',
+        );
+        return;
+      }
+      state = state.copyWith(clearError: true);
+      final response = await ref
+          .read(permissionsRepositoryProvider)
+          .updatePermissions(childId, state.config);
+      debugPrint(
+          '[PermissionsSettingsViewModel] auto-saved: "${response.message}"');
+    } on ApiException catch (e) {
+      debugPrint('[PermissionsSettingsViewModel] auto-save failed: ${e.message}');
+      state = state.copyWith(
+        errorMessage:
+            e.message.isNotEmpty ? e.message : 'Failed to update permissions.',
+      );
+    } catch (e, st) {
+      debugPrint('[PermissionsSettingsViewModel] auto-save error: $e\n$st');
+      state = state.copyWith(
+        errorMessage: 'Something went wrong. Please try again.',
+      );
+    } finally {
+      _autoSaveInFlight = false;
+    }
+  }
+
   /// Persists the current config to the backend. Returns `true` on success.
   Future<bool> save() async {
     if (state.saving) return false;
+    // The explicit tap supersedes any pending debounced auto-save.
+    _autoSaveTimer?.cancel();
 
     final childId = await _childId();
     if (childId == null) {

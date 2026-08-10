@@ -28,6 +28,7 @@ import '../../location/viewmodel/location_state.dart';
 import '../../location/viewmodel/location_viewmodel.dart';
 import '../../permissions/data/permission_service.dart';
 import '../../permissions/viewmodel/permissions_state.dart';
+import '../../permissions/viewmodel/permissions_viewmodel.dart';
 import '../../logout/viewmodel/logout_state.dart';
 import '../../logout/viewmodel/logout_viewmodel.dart';
 import '../../social_accessibility/viewmodel/screen_capture_status_state.dart';
@@ -163,6 +164,16 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
     }
     if (!mounted) return;
     setState(() => _permGranted = results);
+
+    // Reconcile the live OS permission state with the backend. This is the
+    // safety net for revocations: turning a permission OFF happens in system
+    // settings (which often kills/restarts the app), so the per-toggle
+    // auto-save on the permissions screen may never have run. Reconciling on
+    // home open/resume pushes any missed change. No-ops (no PUT) when nothing
+    // changed since the last sync.
+    unawaited(
+      ref.read(permissionsViewModelProvider.notifier).reconcileWithBackend(),
+    );
   }
 
   /// On launch, verify the battery-optimisation exemption is still granted.
@@ -217,15 +228,12 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage>
     }
 
     _lastBackPress = now;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(
-          behavior: SnackBarBehavior.floating,
-          content: Text('Press back again to exit'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+    showAppToast(
+      context: context,
+      title: 'Exit app?',
+      subtitle: 'Press back again to exit',
+      type: ToastType.info,
+    );
   }
 
   /// Opens the full permissions settings screen. The page loads its own data

@@ -1,4 +1,4 @@
-package com.example.vigil1
+package com.app.vigil.child.app
 
 import android.content.Intent
 import android.provider.Settings

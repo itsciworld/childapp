@@ -6,6 +6,7 @@ import 'package:vigil1/core/appColor/app_theme/app_gradient.dart';
 import 'package:vigil1/core/appimages/app_images.dart';
 import 'package:vigil1/core/config/legal_links.dart';
 import 'package:vigil1/core/utils/validators.dart';
+import 'package:vigil1/core/utils/app_toast.dart';
 import 'package:vigil1/core/widgets/custom_button.dart';
 import 'package:vigil1/core/widgets/in_app_web_view_page.dart';
 
@@ -52,15 +53,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     FocusScope.of(context).unfocus();
     if (!(_formKey.currentState?.validate() ?? false)) return;
     if (!_acceptedTerms) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Please accept the Terms & Conditions and Privacy Policy',
-            ),
-          ),
-        );
+      showAppToast(
+        context: context,
+        title: 'Action required',
+        subtitle: 'Please accept the Terms & Conditions and Privacy Policy',
+        type: ToastType.warning,
+      );
       return;
     }
 
@@ -91,14 +89,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         ref.read(loginViewModelProvider.notifier).reset();
       } else if (next.status == LoginStatus.error &&
           next.errorMessage != null) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            SnackBar(
-              content: Text(next.errorMessage!),
-              backgroundColor: Colors.red,
-            ),
-          );
+        showAppToast(
+          context: context,
+          title: 'Login failed',
+          subtitle: next.errorMessage!,
+          type: ToastType.error,
+        );
         ref.read(loginViewModelProvider.notifier).reset();
       }
     });

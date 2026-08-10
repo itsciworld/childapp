@@ -23,7 +23,7 @@ if (flutterVersionName == null) {
 }
 
 android {
-    namespace "com.example.vigil1"
+    namespace "com.app.vigil.child.app"
     compileSdk 36
     ndkVersion flutter.ndkVersion
 
@@ -42,7 +42,7 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.example.vigil1"
+        applicationId "com.app.vigil.child.app"
         minSdkVersion 24
         targetSdkVersion 34
         versionCode flutterVersionCode.toInteger()

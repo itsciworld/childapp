@@ -8,6 +8,7 @@ import 'package:vigil1/core/storage/device_storage.dart';
 import 'package:vigil1/core/storage/identity_storage.dart';
 import 'package:vigil1/core/storage/token_storage.dart';
 import 'package:vigil1/route_names.dart';
+import 'package:vigil1/services/background_services/background_permissions.dart';
 
 class SplashView extends ConsumerStatefulWidget {
   const SplashView({super.key});
@@ -48,6 +49,13 @@ class _SplashViewState extends ConsumerState<SplashView> {
       context,
       isPaired ? RouteNames.childHome : RouteNames.login,
     );
+
+    // Now that the splash has been shown and we've moved to the next screen,
+    // request the background permissions. Doing it here (instead of in main()
+    // before runApp) keeps the "Allow app to always run in the background?"
+    // popup from flashing over a blank screen at cold start. Fire-and-forget:
+    // permission_handler binds to the Activity, not this widget's context.
+    BackgroundPermissions.requestAll();
   }
 
   /// Reads the current device's name / id and persists them so the profile

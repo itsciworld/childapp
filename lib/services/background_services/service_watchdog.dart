@@ -102,13 +102,20 @@ class ServiceWatchdog {
   static Future<void> _restartService() async {
     try {
       final service = FlutterBackgroundService();
-      
-      // First try to stop it if it's in a bad state
-      try {
-        service.invoke('stopService');
-        await Future.delayed(const Duration(seconds: 2));
-      } catch (e) {
-        // Ignore stop errors - service might already be stopped
+
+      // Only stop when something is actually there to stop. Firing
+      // `startService()` at a service record that exists but never managed to
+      // enter the foreground is what Android punishes with
+      // ForegroundServiceDidNotStartInTimeException, so a clean stop first
+      // guarantees the restart goes through Service.onCreate — the one path
+      // that calls startForeground().
+      if (await service.isRunning()) {
+        try {
+          service.invoke('stopService');
+          await Future.delayed(const Duration(seconds: 2));
+        } catch (e) {
+          // Ignore stop errors - service might already be stopped
+        }
       }
 
       // Start the service

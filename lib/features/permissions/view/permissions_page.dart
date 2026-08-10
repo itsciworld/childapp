@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/appColor/app_theme/app_gradient.dart';
 import '../../../core/appimages/app_images.dart';
+import '../../../core/utils/app_toast.dart';
 import '../../../navigation_helper.dart';
 import '../viewmodel/permissions_state.dart';
 import '../viewmodel/permissions_viewmodel.dart';
@@ -50,26 +51,30 @@ class _PermissionsPageState extends ConsumerState<PermissionsPage>
   }
 
   /// Sends the current permission selections to the backend, then enters the
-  /// child home screen on success. Errors surface as a snackbar.
+  /// child home screen on success. Any error is surfaced by the errorMessage
+  /// listener in [build].
   Future<void> _onContinue() async {
-    final messenger = ScaffoldMessenger.of(context);
     final ok = await ref.read(permissionsViewModelProvider.notifier).submit();
     if (!mounted) return;
-    if (ok) {
-      Nav.toChildHome(context);
-    } else {
-      final message = ref.read(permissionsViewModelProvider).errorMessage ??
-          'Could not save permissions. Please try again.';
-      messenger
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(content: Text(message), backgroundColor: Colors.red),
-        );
-    }
+    if (ok) Nav.toChildHome(context);
   }
 
   @override
   Widget build(BuildContext context) {
+    // Surface any save failure — from the per-toggle auto-save or the explicit
+    // Continue tap — as an error toast.
+    ref.listen(permissionsViewModelProvider, (prev, next) {
+      final msg = next.errorMessage;
+      if (msg != null && msg.isNotEmpty && msg != prev?.errorMessage) {
+        showAppToast(
+          context: context,
+          title: 'Could not save',
+          subtitle: msg,
+          type: ToastType.error,
+        );
+      }
+    });
+
     final state = ref.watch(permissionsViewModelProvider);
     final notifier = ref.read(permissionsViewModelProvider.notifier);
     final grantedCount = state.granted.values.where((g) => g).length;

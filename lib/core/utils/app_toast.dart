@@ -1,7 +1,27 @@
 import 'package:flutter/material.dart';
 
+/// The kind of toast — drives the accent colour + default icon.
 enum ToastType { success, error, warning, info }
 
+/// Shows a floating, auto-dismissing toast at the top of the screen.
+///
+/// Use this everywhere instead of [SnackBar]. It is inserted into the ROOT
+/// [Overlay] (the app Navigator's overlay), so it stays visible even across a
+/// route push that happens right after — e.g. showing a success toast and then
+/// navigating to the next screen.
+///
+/// Safe to call from `build`, a Riverpod `ref.listen` callback, or a button
+/// handler: the insert is deferred to the next frame so it never mutates the
+/// overlay mid-build.
+///
+/// ```dart
+/// showAppToast(
+///   context: context,
+///   title: 'Success',
+///   subtitle: 'Pairing code verified',
+///   type: ToastType.success,
+/// );
+/// ```
 void showAppToast({
   required BuildContext context,
   required String title,
@@ -9,8 +29,15 @@ void showAppToast({
   ToastType type = ToastType.success,
   IconData? icon,
 }) {
-  final overlay = Overlay.of(context);
+  final overlay = Overlay.of(context, rootOverlay: true);
+
   late OverlayEntry entry;
+  var removed = false;
+  void remove() {
+    if (removed) return;
+    removed = true;
+    entry.remove();
+  }
 
   entry = OverlayEntry(
     builder: (_) => _ToastOverlay(
@@ -18,11 +45,15 @@ void showAppToast({
       subtitle: subtitle,
       type: type,
       icon: icon,
-      onDismiss: () => entry.remove(),
+      onDismiss: remove,
     ),
   );
 
-  overlay.insert(entry);
+  // Defer so it's safe to call during build / listen callbacks.
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (removed) return;
+    overlay.insert(entry);
+  });
 }
 
 /// ─────────────────────────────────────────────
@@ -107,7 +138,7 @@ class _ToastOverlayState extends State<_ToastOverlay>
 
     _fade = CurvedAnimation(parent: _ctrl, curve: const Interval(0.0, 0.2));
 
-    /// 🔥 PROGRESS (FULL → EMPTY)
+    /// 🔥 PROGRESS (empty → full)
     _progress = Tween<double>(
       begin: 0,
       end: 1,
@@ -116,8 +147,8 @@ class _ToastOverlayState extends State<_ToastOverlay>
     /// 🚀 START
     _ctrl.forward();
 
-    /// 🔥 WHEN DONE → EXIT ANIMATION
-    _ctrl.addStatusListener((status) async {
+    /// 🔥 WHEN DONE → DISMISS
+    _ctrl.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
         widget.onDismiss();
       }
@@ -140,6 +171,7 @@ class _ToastOverlayState extends State<_ToastOverlay>
     // If dragged more than 100px or fast swipe, dismiss immediately
     if (_dragOffset.abs() > 100 ||
         details.velocity.pixelsPerSecond.dx.abs() > 500) {
+      _ctrl.stop();
       widget.onDismiss();
     } else {
       // Reset position
@@ -183,17 +215,17 @@ class _ToastOverlayState extends State<_ToastOverlay>
                     /// 🔥 3 SHADOW LAYERS
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.20),
+                        color: Colors.black.withValues(alpha: 0.20),
                         offset: const Offset(0, 8),
                         blurRadius: 10,
                       ),
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.20),
+                        color: Colors.black.withValues(alpha: 0.20),
                         offset: const Offset(0, 6),
                         blurRadius: 30,
                       ),
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.20),
+                        color: Colors.black.withValues(alpha: 0.20),
                         offset: const Offset(0, 16),
                         blurRadius: 24,
                       ),
@@ -229,7 +261,7 @@ class _ToastOverlayState extends State<_ToastOverlay>
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  /// ✅ TITLE FIXED
+                                  /// TITLE
                                   Text(
                                     widget.title,
                                     style: const TextStyle(
@@ -241,7 +273,7 @@ class _ToastOverlayState extends State<_ToastOverlay>
                                   ),
                                   const SizedBox(height: 4),
 
-                                  /// ✅ SUBTITLE FIXED
+                                  /// SUBTITLE
                                   Text(
                                     widget.subtitle,
                                     style: const TextStyle(
