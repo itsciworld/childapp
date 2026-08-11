@@ -22,6 +22,24 @@ if (flutterVersionName == null) {
     flutterVersionName = '1.0'
 }
 
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('key.properties')
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withReader('UTF-8') { reader ->
+        keystoreProperties.load(reader)
+    }
+}
+
+// storeFile may be absolute, or relative to either android/app/ or android/.
+def resolveKeystoreFile = {
+    def path = keystoreProperties['storeFile']
+    if (path == null) {
+        return null
+    }
+    def candidates = [file(path), rootProject.file(path)]
+    return candidates.find { it.exists() } ?: candidates.first()
+}
+
 android {
     namespace "com.app.vigil.child.app"
     compileSdk 36
@@ -50,9 +68,21 @@ android {
         multiDexEnabled true
     }
 
+    signingConfigs {
+        release {
+            if (keystorePropertiesFile.exists()) {
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+                storeFile resolveKeystoreFile()
+                storePassword keystoreProperties['storePassword']
+            }
+        }
+    }
+
     buildTypes {
         release {
-            signingConfig signingConfigs.debug
+            // Falls back to debug signing only when key.properties is absent (e.g. a fresh clone).
+            signingConfig keystorePropertiesFile.exists() ? signingConfigs.release : signingConfigs.debug
         }
     }
 }

@@ -167,7 +167,9 @@ class DataAccess {
   /// the live-status feature's Wi-Fi details. Sent under `network_wifi`.
   final bool networkWifi;
 
-  /// Photos & media (gallery) access. Sent under `photos`.
+  /// Photos & media (gallery) access. Sent under `photo` — singular, matching
+  /// the backend contract. Every other gallery-related name in the app is
+  /// plural, so the wire key is the one place to be careful here.
   final bool photos;
 
   /// Post-notifications runtime permission (the protection notification).
@@ -192,7 +194,9 @@ class DataAccess {
       location: flag(json['location']),
       appUsage: flag(json['app_usage']),
       networkWifi: flag(json['network_wifi']),
-      photos: flag(json['photos']),
+      // `photos` is the pre-rename key: records written before the switch to
+      // the singular `photo` still carry it, so accept either on the way in.
+      photos: flag(json['photo']) || flag(json['photos']),
       notification: flag(json['notification']),
       messageNotifications: flag(json['read_notification']),
       chatScreen: flag(json['read_chat']),
@@ -207,7 +211,7 @@ class DataAccess {
         'location': location,
         'app_usage': appUsage,
         'network_wifi': networkWifi,
-        'photos': photos,
+        'photo': photos,
         'notification': notification,
         'read_notification': messageNotifications,
         'read_chat': chatScreen,

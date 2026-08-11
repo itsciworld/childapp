@@ -50,3 +50,16 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Signing — never commit keystores or their passwords.
+# Losing these means you can never update the app under this package name;
+# back them up somewhere outside the repo.
+**/*.jks
+**/*.keystore
+**/key.properties
+**/*.p12
+**/*.pepk
+# iOS signing
+**/*.mobileprovision
+**/*.cer
+**/*.certSigningRequest

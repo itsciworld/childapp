@@ -1,4 +1,4 @@
-package com.example.vigil1
+package com.app.vigil.child.app
 
 import android.app.Notification
 import android.service.notification.NotificationListenerService

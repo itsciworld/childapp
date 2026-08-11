@@ -1,4 +1,4 @@
-package com.example.vigil1
+package com.app.vigil.child.app
 
 /**
  * The single source of truth for which social / messaging apps the capture
