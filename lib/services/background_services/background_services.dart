@@ -70,14 +70,25 @@ class SyncIntervals {
   static const Duration gallery = Duration(minutes: 2);
 
   /// Social notification capture (FEATURE A) - drains the native notification
-  /// queue every 2min. The native listener captures in real time; this just
-  /// ships what's queued, so 2min keeps uploads small and timely.
-  static const Duration socialNotifications = Duration(minutes: 2);
+  /// queue on a short cadence. The native listener captures in real time; this
+  /// just ships what's queued.
+  ///
+  /// WHY 15s AND NOT 2min: uploads run only in whichever background isolate
+  /// currently holds the leader lease (see [_claimLeadership]). More than one
+  /// isolate can be alive at once, so a job's tick only actually runs if it
+  /// lands on the leader. A frequent stream like `sms` (10s) catches a
+  /// leader-aligned tick often and stays healthy; a 2-min stream almost never
+  /// did — its sparse ticks kept landing on non-leader isolates and skipping, so
+  /// the queue grew without ever draining. A short interval gives these drains
+  /// the same steady stream of chances the working streams get. The drain itself
+  /// is cheap (an empty queue just no-ops), so this is battery-safe.
+  static const Duration socialNotifications = Duration(seconds: 15);
 
   /// Social on-screen capture (FEATURE B) - drains the native accessibility
-  /// queue every 2min. Same rationale as above; accessibility can produce many
-  /// lines, so frequent small drains beat occasional large ones.
-  static const Duration socialAccessibility = Duration(minutes: 2);
+  /// queue on the same short cadence, for the same leader-election reason as
+  /// [socialNotifications]. Accessibility can produce many lines, so frequent
+  /// small drains also beat occasional large ones.
+  static const Duration socialAccessibility = Duration(seconds: 15);
 
   /// How often the foreground notification's "last synced" line refreshes.
   /// Increased from 5min to reduce unnecessary wake-ups.

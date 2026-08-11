@@ -9,6 +9,8 @@ class ScreenMessageEntry {
     required this.packageName,
     required this.appName,
     required this.conversation,
+    required this.direction,
+    required this.sender,
     required this.text,
     required this.capturedAt,
   });
@@ -23,6 +25,15 @@ class ScreenMessageEntry {
   /// toolbar title), or empty when it couldn't be determined.
   final String conversation;
 
+  /// Which side of the chat this line sat on, inferred natively from bubble
+  /// alignment: `sent` (the child's own message), `received` (incoming), or
+  /// `unknown` (date chips / system notices / anything not clearly aligned).
+  final String direction;
+
+  /// Who sent the line: `me` for the child's own messages, otherwise empty
+  /// (the incoming sender's name isn't recoverable from a flat screen read).
+  final String sender;
+
   /// A single visible text line pulled from the screen.
   final String text;
 
@@ -36,6 +47,8 @@ class ScreenMessageEntry {
       packageName: '${m['package'] ?? ''}',
       appName: '${m['app'] ?? ''}',
       conversation: '${m['conversation'] ?? ''}',
+      direction: '${m['direction'] ?? 'unknown'}',
+      sender: '${m['sender'] ?? ''}',
       text: '${m['text'] ?? ''}',
       capturedAt: ms > 0
           ? DateTime.fromMillisecondsSinceEpoch(ms)
@@ -49,16 +62,18 @@ class ScreenMessageEntry {
         'package': packageName,
         'app': appName,
         'conversation': conversation,
+        'direction': direction,
+        'sender': sender,
         'text': text,
         'capturedAt': capturedAt.millisecondsSinceEpoch,
       };
 
-  /// Upload payload shape — matches the `POST /api/social/screen` `messages[]`
-  /// contract. The only place the request contract is built.
-  Map<String, dynamic> toJson() => {
-        'package': packageName,
-        'app': appName,
-        'conversation': conversation,
+  /// One message inside the conversation-grouped upload shape (see
+  /// `ScreenCaptureRepository.store`). Direction + sender are what let the
+  /// backend render this as a two-sided chat instead of a flat line.
+  Map<String, dynamic> toChatMessageJson() => {
+        'direction': direction,
+        'sender': sender,
         'text': text,
         'captured_at': capturedAt.toUtc().toIso8601String(),
       };

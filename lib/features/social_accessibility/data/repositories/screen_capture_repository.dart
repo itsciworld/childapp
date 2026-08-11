@@ -19,8 +19,8 @@ import '../models/screen_message_entry.dart';
 ///  GOING LIVE: when the backend endpoint exists, do exactly two things —
 ///    1. set [_endpoint] to the real path, and
 ///    2. flip [_uploadEnabled] to return `true`.
-///  (And adjust `ScreenMessageEntry.toJson()` / `SocialUploadResponse` if the
-///   schema differs.) Everything else stays.
+///  (And adjust `ScreenMessageEntry.toChatMessageJson()` / [_groupByConversation]
+///   / `SocialUploadResponse` if the schema differs.) Everything else stays.
 /// ─────────────────────────────────────────────────────────────────────────
 class ScreenCaptureRepository {
   ScreenCaptureRepository(this._dio, this._deviceStorage);
@@ -63,7 +63,7 @@ class ScreenCaptureRepository {
     final payload = <String, dynamic>{
       'child_id': childId,
       'parent_id': parentId,
-      'messages': entries.map((e) => e.toJson()).toList(),
+      'conversations': _groupByConversation(entries),
     };
 
     _logPayload(entries, payload);
@@ -96,8 +96,35 @@ class ScreenCaptureRepository {
     }
   }
 
-  /// Detailed per-line console dump — the "see every captured chat line" view
-  /// while there's no backend yet.
+  /// Folds a flat, chronologically-ordered list of captured lines into the
+  /// chat-shaped upload payload: one entry per open chat, each holding its
+  /// messages in the order they were read off the screen. Order within a
+  /// conversation is preserved; a `LinkedHashMap` also keeps the conversations
+  /// themselves in first-seen order.
+  List<Map<String, dynamic>> _groupByConversation(
+    List<ScreenMessageEntry> entries,
+  ) {
+    final groups = <String, Map<String, dynamic>>{};
+    for (final e in entries) {
+      final key = '${e.packageName}|${e.conversation}';
+      final group = groups.putIfAbsent(
+        key,
+        () => <String, dynamic>{
+          'package': e.packageName,
+          'app': e.appName,
+          'conversation': e.conversation,
+          'messages': <Map<String, dynamic>>[],
+        },
+      );
+      (group['messages'] as List<Map<String, dynamic>>)
+          .add(e.toChatMessageJson());
+    }
+    return groups.values.toList();
+  }
+
+  /// Detailed console dump — the "see every captured chat line" view, now laid
+  /// out like a chat (sent lines indented right, received left) so the two-sided
+  /// structure is visible at a glance.
   void _logPayload(
     List<ScreenMessageEntry> entries,
     Map<String, dynamic> payload,
@@ -107,9 +134,14 @@ class ScreenCaptureRepository {
     for (var i = 0; i < entries.length; i++) {
       final e = entries[i];
       final chat = e.conversation.isNotEmpty ? e.conversation : '(unknown chat)';
+      final side = switch (e.direction) {
+        'sent' => '                    →',
+        'received' => '←',
+        _ => '·',
+      };
       debugPrint('$_tag #${i + 1}  ${e.appName}  chat="$chat"');
-      debugPrint('$_tag     Text : ${e.text}');
-      debugPrint('$_tag     Time : ${e.capturedAt.toIso8601String()}');
+      debugPrint('$_tag  $side ${e.text}');
+      debugPrint('$_tag     [${e.direction}] ${e.capturedAt.toIso8601String()}');
     }
     final mode = _uploadEnabled ? 'POST → $_endpoint' : 'WOULD POST (DISABLED)';
     debugPrint('$_tag 📦 $mode');
