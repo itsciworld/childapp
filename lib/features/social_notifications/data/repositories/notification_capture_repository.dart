@@ -43,7 +43,17 @@ class NotificationCaptureRepository {
   /// Drains everything captured since the last pass into upload-ready entries.
   Future<List<NotificationMessageEntry>> readQueued() async {
     final raw = await _queue.drain();
-    return raw.map(NotificationMessageEntry.fromQueue).toList();
+    final entries = raw.map(NotificationMessageEntry.fromQueue).toList();
+    if (entries.isNotEmpty) {
+      final byApp = <String, int>{};
+      for (final e in entries) {
+        final key = e.appName.isNotEmpty ? e.appName : e.packageName;
+        byApp[key] = (byApp[key] ?? 0) + 1;
+      }
+      debugPrint('$_tag 📥 DRAINED ${entries.length} captured message(s) '
+          'from notif_queue.jsonl — $byApp');
+    }
+    return entries;
   }
 
   /// Puts [entries] back on the queue (newest-appended) so a later pass retries
@@ -68,14 +78,18 @@ class NotificationCaptureRepository {
       'messages': entries.map((e) => e.toJson()).toList(),
     };
 
-    _logPayload(entries, payload);
-
     if (!_uploadEnabled) {
       return SocialUploadResponse.debug(entries.length);
     }
 
+    final startedAt = DateTime.now();
+
     try {
       final deviceKey = await _deviceStorage.getDeviceKey();
+      debugPrint('$_tag ⬆️  POSTING ${entries.length} message(s) → '
+          '${_dio.options.baseUrl}$_endpoint '
+          '(child=$childId, deviceKey=${deviceKey != null && deviceKey.isNotEmpty ? 'yes' : 'MISSING'})');
+
       final response = await _dio.post<dynamic>(
         _endpoint,
         data: payload,
@@ -86,37 +100,30 @@ class NotificationCaptureRepository {
           },
         ),
       );
+
+      final ms = DateTime.now().difference(startedAt).inMilliseconds;
       final data = response.data;
       if (data is! Map<String, dynamic>) {
+        debugPrint('$_tag ❌ BACKEND REJECTED — HTTP ${response.statusCode} '
+            'returned ${data.runtimeType}, expected a JSON object. Body: $data');
         throw const ApiException('Unexpected response from the server.');
       }
-      return SocialUploadResponse.fromJson(data);
+
+      final parsed = SocialUploadResponse.fromJson(data);
+      debugPrint('$_tag ✅ POSTED OK — HTTP ${response.statusCode} in ${ms}ms | '
+          'sent=${entries.length} saved=${parsed.saved ?? '?'} '
+          'skipped=${parsed.duplicates ?? '?'}');
+      return parsed;
     } on DioException catch (e) {
+      final ms = DateTime.now().difference(startedAt).inMilliseconds;
+      debugPrint('$_tag ❌ POST FAILED — HTTP ${e.response?.statusCode ?? 'no-response'} '
+          '(${e.type.name}) in ${ms}ms | ${entries.length} message(s) re-queued');
+      debugPrint('$_tag    reason: ${e.response?.data ?? e.message}');
       throw ApiException.fromDio(e);
     } on FormatException catch (e) {
+      debugPrint('$_tag ❌ RESPONSE PARSE FAILED — ${e.message}');
       throw ApiException(e.message);
     }
-  }
-
-  /// Detailed per-message console dump — this is the "see every captured chat"
-  /// view while there's no backend yet.
-  void _logPayload(
-    List<NotificationMessageEntry> entries,
-    Map<String, dynamic> payload,
-  ) {
-    if (!kDebugMode) return;
-    debugPrint('$_tag ━━━━━━━━━━ batch of ${entries.length} ━━━━━━━━━━');
-    for (var i = 0; i < entries.length; i++) {
-      final e = entries[i];
-      debugPrint('$_tag #${i + 1}  ${e.appName} (${e.packageName})');
-      debugPrint('$_tag     From : ${e.title}   Group: ${e.isGroup}'
-          '${e.subText.isNotEmpty ? '  [${e.subText}]' : ''}');
-      debugPrint('$_tag     Text : ${e.text}');
-      debugPrint('$_tag     Time : ${e.postedAt.toIso8601String()}');
-    }
-    final mode = _uploadEnabled ? 'POST → $_endpoint' : 'WOULD POST (DISABLED)';
-    debugPrint('$_tag 📦 $mode');
-    debugPrint('$_tag ${const JsonEncoder.withIndent('  ').convert(payload)}');
   }
 }
 

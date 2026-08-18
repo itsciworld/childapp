@@ -69,8 +69,19 @@ class VigilNotificationListenerService : NotificationListenerService() {
             // Same message can be re-posted as the notification updates; fold to
             // one record per minute.
             val dedup = "$pkg|$title|$body|${postedAt / 60000L}"
-            SocialQueueWriter.append(applicationContext, FILE, obj, dedup)
-            Log.d(TAG, "captured ${SocialApps.nameFor(pkg)} <- ${title ?: "?"}")
+            val appName = SocialApps.nameFor(pkg)
+            if (SocialQueueWriter.append(applicationContext, FILE, obj, dedup)) {
+                // Message text is verbose-only (`adb logcat -s VigilNotif:V`);
+                // the default level just confirms one was queued.
+                Log.v(TAG, "captured $appName | from=\"${title ?: "?"}\"" +
+                    "${if (isGroup) " | group=\"$subText\"" else ""} | \"$body\"")
+                Log.d(TAG, "QUEUED 1 $appName message — requesting expedited upload")
+                // FEATURE A: ship it now via an expedited job (runs in Doze),
+                // instead of waiting for the polling isolate's next drain.
+                ExpeditedUpload.trigger(applicationContext)
+            } else {
+                Log.v(TAG, "$appName duplicate/unwritable — not queued (from=\"${title ?: "?"}\")")
+            }
         } catch (t: Throwable) {
             Log.w(TAG, "capture failed", t)
         }

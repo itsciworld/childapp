@@ -8,6 +8,7 @@ class VerifyOtpRequest {
     required this.otp,
     required this.name,
     required this.age,
+    required this.deviceId,
   });
 
   /// Parent's email — carried over from the login screen.
@@ -22,10 +23,16 @@ class VerifyOtpRequest {
   /// Child's age in years.
   final int age;
 
+  /// This phone's stable identifier (from `device_info_plus`, the same value
+  /// persisted as the local `deviceId`). Sent so the backend pairs the OTP to
+  /// this exact device.
+  final String deviceId;
+
   Map<String, dynamic> toJson() => {
         'email': email,
         'otp': otp,
         'name': name,
         'age': age,
+        'deviceId': deviceId,
       };
 }

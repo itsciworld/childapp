@@ -296,29 +296,27 @@ void onStart(ServiceInstance service) async {
     _SyncJob('socialScreen', SyncIntervals.socialAccessibility,
         screenCaptureSync.sync),
   ];
-  // Claim the lease and keep it fresh on a fixed cadence, independent of how
-  // long any individual job takes. Started BEFORE the jobs so the first tick
-  // already has a settled leader instead of racing for it.
-  await _claimLeadership();
-  _startLeadershipRenewal();
+  // Only ONE isolate should actually run the jobs at a time — on some OEMs more
+  // than one background isolate stays alive, and if their long-interval ticks
+  // land on non-leader isolates the stream STARVES (observed: social capture
+  // ticked repeatedly, always skipped on the leader gate, and never uploaded).
+  // The coordinator ties job execution to the leader lease: whoever holds it
+  // promotes and runs every stream on every tick; the rest stay demoted and
+  // idle instead of ticking-and-skipping. That is what keeps a single active
+  // leader firing all streams reliably.
+  final coordinator = _JobCoordinator(jobs);
 
-  for (final job in jobs) {
-    job.start();
-  }
+  // Claim once up front so a fresh boot doesn't wait a full renewal cycle for
+  // its first drain; the renewal timer drives promote/demote from here on.
+  // Promotion itself does the boot `runNow` kick (so long-interval streams like
+  // gallery / app-usage don't sit idle for a full interval before first sync).
+  final bootLeader = await _claimLeadership();
+  _startLeadershipRenewal(coordinator);
+  if (bootLeader) coordinator.promote();
 
-  // Kick every stream ONCE right now, the moment the isolate boots. Without
-  // this, a job's first run only happens after a full interval elapses — up to
-  // 15 min for calendar / gallery / app-usage — so those tiles sat on
-  // "Starting… / Waiting for first sync" for a long time even though data was
-  // flowing. The foreground 'syncNow' can't be relied on to cover this: it's
-  // missed if the home screen isn't open, or if it fires before this listener
-  // is wired up. The same leader / in-flight guards apply, so this is safe.
-  for (final job in jobs) {
-    job.runNow();
-  }
-
-  // Foreground "sync on open" (ChildHomePage sends 'syncNow') → run every stream
-  // immediately, subject to the same leader / in-flight guards.
+  // Foreground "sync on open" (ChildHomePage sends 'syncNow') → kick every
+  // stream immediately. Harmless on a standby isolate: the per-tick leader gate
+  // in [_SyncJob._tick] makes a non-leader's run a no-op.
   service.on('syncNow').listen((event) {
     for (final job in jobs) {
       job.runNow();
@@ -431,18 +429,60 @@ const int _leaderStaleMs = 15000;
 /// Renews (or seizes) the lease on a fixed cadence, independently of the jobs.
 Timer? _leaderRenewTimer;
 
-void _startLeadershipRenewal() {
+/// Renews (or seizes) the lease on a fixed cadence, independently of the jobs,
+/// and drives the [coordinator]: hold the lease → promote (run jobs); lose it →
+/// demote (stand down). This is what converges job execution onto a single
+/// active isolate while preserving fast failover if that isolate dies.
+void _startLeadershipRenewal(_JobCoordinator coordinator) {
   _leaderRenewTimer?.cancel();
   _leaderRenewTimer = Timer.periodic(
     const Duration(milliseconds: _leaderRenewMs),
     (_) async {
       try {
-        await _claimLeadership();
+        if (await _claimLeadership()) {
+          coordinator.promote();
+        } else {
+          coordinator.demote();
+        }
       } catch (e) {
         debugPrint('[leader] ⚠️ lease renewal failed: $e');
       }
     },
   );
+}
+
+/// Starts/stops the whole job set as this isolate gains or loses the leader
+/// lease, so exactly one isolate runs the streams at a time. Idempotent: a
+/// promote while already active (or demote while already idle) is a no-op, so
+/// the 5-second renewal timer can call it every tick cheaply.
+class _JobCoordinator {
+  _JobCoordinator(this._jobs);
+
+  final List<_SyncJob> _jobs;
+  bool _active = false;
+
+  void promote() {
+    if (_active) return;
+    _active = true;
+    debugPrint('[coordinator] 👑 promoted — starting ${_jobs.length} streams');
+    for (final job in _jobs) {
+      job.start();
+    }
+    // Boot/takeover kick so long-interval streams drain now instead of waiting
+    // a full interval; the per-tick leader gate keeps this safe.
+    for (final job in _jobs) {
+      job.runNow();
+    }
+  }
+
+  void demote() {
+    if (!_active) return;
+    _active = false;
+    debugPrint('[coordinator] 💤 demoted — standing down streams');
+    for (final job in _jobs) {
+      job.stop();
+    }
+  }
 }
 
 Future<bool> _claimLeadership() async {

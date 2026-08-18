@@ -36,12 +36,15 @@ class Nav {
   /// Navigate to the verify-OTP screen.
   ///
   /// The parent enters the emailed OTP plus the child's name and age here;
-  /// [email] is carried over from the login screen.
-  static void toVerifyOtp(BuildContext context, String email) {
+  /// [email] is carried over from the login screen. [password] is carried over
+  /// too so "Resend OTP" can replay the login-and-send-otp call without asking
+  /// the parent to sign in again.
+  static void toVerifyOtp(BuildContext context, String email,
+      [String password = '']) {
     Navigator.pushNamed(
       context,
       RouteNames.verifyOtp,
-      arguments: {'email': email},
+      arguments: {'email': email, 'password': password},
     );
   }
 

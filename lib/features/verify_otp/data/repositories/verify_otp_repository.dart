@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/network/api_exception.dart';
@@ -23,11 +24,18 @@ class VerifyOtpRepository {
   /// Throws [ApiException] on any network / server failure.
   Future<VerifyOtpResponse> verifyOtpAndPairDevice(
       VerifyOtpRequest request) async {
+    const endpoint = '/api/children/verify-otp-and-pair-device';
     try {
+      final payload = request.toJson();
+      debugPrint('[VerifyOtpRepository] POST $endpoint → '
+          'deviceId="${payload['deviceId']}", body=$payload');
+
       final response = await _dio.post<dynamic>(
-        '/api/children/verify-otp-and-pair-device',
-        data: request.toJson(),
+        endpoint,
+        data: payload,
       );
+      debugPrint('[VerifyOtpRepository] response '
+          '(${response.statusCode}): ${response.data}');
 
       final data = response.data;
       if (data is! Map<String, dynamic>) {

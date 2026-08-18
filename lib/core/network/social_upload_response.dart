@@ -24,7 +24,8 @@ class SocialUploadResponse {
       status: asInt(json['status']),
       message: json['message'] as String? ?? json['msg'] as String?,
       saved: asInt(json['saved']),
-      duplicates: asInt(json['duplicates']),
+      // `/api/social/screen` calls these `skipped`; `/notifications` omits them.
+      duplicates: asInt(json['duplicates']) ?? asInt(json['skipped']),
       total: asInt(json['total']),
     );
   }

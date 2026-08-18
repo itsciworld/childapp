@@ -1,6 +1,7 @@
 package com.app.vigil.child.app
 
 import android.content.Context
+import android.util.Log
 import org.json.JSONObject
 import java.io.File
 import java.util.ArrayDeque
@@ -23,6 +24,7 @@ import java.util.ArrayDeque
  *   picked up on the next pass.
  */
 object SocialQueueWriter {
+    private const val TAG = "VigilQueue"
     private const val DIR = "vigil_social"
 
     /** Trim the file once it grows past this, so a backend outage can't let it
@@ -47,22 +49,36 @@ object SocialQueueWriter {
     /**
      * Append [obj] to [fileName] unless [dedupKey] was seen recently.
      * Never throws — capture must never crash the host app.
+     *
+     * @return `true` if a new line was actually written (i.e. not a duplicate and
+     *   no IO error), so the caller can trigger an expedited upload only when
+     *   there is genuinely new data to ship.
      */
-    fun append(context: Context, fileName: String, obj: JSONObject, dedupKey: String) {
+    fun append(context: Context, fileName: String, obj: JSONObject, dedupKey: String): Boolean {
         synchronized(lock) {
-            try {
+            return try {
                 val h = dedupKey.hashCode()
                 val seen = recentSet.getOrPut(fileName) { HashSet() }
-                if (!seen.add(h)) return
+                if (!seen.add(h)) return false
                 val order = recentOrder.getOrPut(fileName) { ArrayDeque() }
                 order.addLast(h)
                 if (order.size > DEDUP_CAPACITY) seen.remove(order.removeFirst())
 
                 val file = File(dir(context), fileName)
-                if (file.exists() && file.length() > MAX_BYTES) trimHalf(file)
+                if (file.exists() && file.length() > MAX_BYTES) {
+                    Log.w(TAG, "$fileName over ${MAX_BYTES / 1000}KB — trimming oldest half " +
+                        "(backend upload may be failing/backed up)")
+                    trimHalf(file)
+                }
                 file.appendText(obj.toString() + "\n")
-            } catch (_: Throwable) {
+                Log.v(TAG, "wrote 1 line -> $fileName (pending on disk: ${file.length()} bytes)")
+                true
+            } catch (t: Throwable) {
                 // Swallow: a full disk / IO error must not take down WhatsApp etc.
+                // Log it though — a silent write failure means nothing ever reaches
+                // the backend, and this is the only place that would show it.
+                Log.w(TAG, "WRITE FAILED for $fileName — this capture is lost", t)
+                false
             }
         }
     }

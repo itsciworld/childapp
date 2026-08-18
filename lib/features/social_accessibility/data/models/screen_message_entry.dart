@@ -68,10 +68,16 @@ class ScreenMessageEntry {
         'capturedAt': capturedAt.millisecondsSinceEpoch,
       };
 
-  /// One message inside the conversation-grouped upload shape (see
-  /// `ScreenCaptureRepository.store`). Direction + sender are what let the
-  /// backend render this as a two-sided chat instead of a flat line.
-  Map<String, dynamic> toChatMessageJson() => {
+  /// Upload payload shape — matches the `POST /api/social/screen` `messages[]`
+  /// contract: a FLAT list, each entry carrying its own app + open-chat context.
+  /// (The server groups by `conversation` itself; sending a pre-grouped
+  /// `conversations[]` is rejected with 400 "messages array is required".)
+  /// Direction + sender are what let the backend render this as a two-sided
+  /// chat instead of a flat line.
+  Map<String, dynamic> toJson() => {
+        'package': packageName,
+        'app': appName,
+        'conversation': conversation,
         'direction': direction,
         'sender': sender,
         'text': text,

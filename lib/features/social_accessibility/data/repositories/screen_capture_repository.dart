@@ -15,13 +15,10 @@ import '../models/screen_message_entry.dart';
 /// accessibility queue file and uploading the records. Same shape as
 /// `NotificationCaptureRepository`, just a different queue file + endpoint.
 ///
-/// ─────────────────────────────────────────────────────────────────────────
-///  GOING LIVE: when the backend endpoint exists, do exactly two things —
-///    1. set [_endpoint] to the real path, and
-///    2. flip [_uploadEnabled] to return `true`.
-///  (And adjust `ScreenMessageEntry.toChatMessageJson()` / [_groupByConversation]
-///   / `SocialUploadResponse` if the schema differs.) Everything else stays.
-/// ─────────────────────────────────────────────────────────────────────────
+/// Wire format: a FLAT `messages[]` array (each entry carries its own app +
+/// open-chat context). The server does the conversation grouping; posting a
+/// pre-grouped `conversations[]` is rejected with 400 "messages array is
+/// required and must not be empty."
 class ScreenCaptureRepository {
   ScreenCaptureRepository(this._dio, this._deviceStorage);
 
@@ -42,7 +39,17 @@ class ScreenCaptureRepository {
   /// Drains everything captured since the last pass into upload-ready entries.
   Future<List<ScreenMessageEntry>> readQueued() async {
     final raw = await _queue.drain();
-    return raw.map(ScreenMessageEntry.fromQueue).toList();
+    final entries = raw.map(ScreenMessageEntry.fromQueue).toList();
+    if (entries.isNotEmpty) {
+      final byApp = <String, int>{};
+      for (final e in entries) {
+        byApp[e.appName.isNotEmpty ? e.appName : e.packageName] =
+            (byApp[e.appName.isNotEmpty ? e.appName : e.packageName] ?? 0) + 1;
+      }
+      debugPrint('$_tag 📥 DRAINED ${entries.length} captured chat line(s) '
+          'from a11y_queue.jsonl — $byApp');
+    }
+    return entries;
   }
 
   /// Puts [entries] back on the queue so a later pass retries them — used on
@@ -63,17 +70,22 @@ class ScreenCaptureRepository {
     final payload = <String, dynamic>{
       'child_id': childId,
       'parent_id': parentId,
-      'conversations': _groupByConversation(entries),
+      'messages': entries.map((e) => e.toJson()).toList(),
     };
-
-    _logPayload(entries, payload);
 
     if (!_uploadEnabled) {
       return SocialUploadResponse.debug(entries.length);
     }
 
+    final chats = entries.map((e) => '${e.packageName}|${e.conversation}').toSet().length;
+    final startedAt = DateTime.now();
+
     try {
       final deviceKey = await _deviceStorage.getDeviceKey();
+      debugPrint('$_tag ⬆️  POSTING ${entries.length} chat line(s) across '
+          '$chats chat(s) → ${_dio.options.baseUrl}$_endpoint '
+          '(child=$childId, deviceKey=${deviceKey != null && deviceKey.isNotEmpty ? 'yes' : 'MISSING'})');
+
       final response = await _dio.post<dynamic>(
         _endpoint,
         data: payload,
@@ -84,69 +96,32 @@ class ScreenCaptureRepository {
           },
         ),
       );
+
+      final ms = DateTime.now().difference(startedAt).inMilliseconds;
       final data = response.data;
       if (data is! Map<String, dynamic>) {
+        debugPrint('$_tag ❌ BACKEND REJECTED — HTTP ${response.statusCode} '
+            'returned ${data.runtimeType}, expected a JSON object. Body: $data');
         throw const ApiException('Unexpected response from the server.');
       }
-      return SocialUploadResponse.fromJson(data);
+
+      final parsed = SocialUploadResponse.fromJson(data);
+      debugPrint('$_tag ✅ POSTED OK — HTTP ${response.statusCode} in ${ms}ms | '
+          'sent=${entries.length} saved=${parsed.saved ?? '?'} '
+          'skipped=${parsed.duplicates ?? '?'}');
+      return parsed;
     } on DioException catch (e) {
+      final ms = DateTime.now().difference(startedAt).inMilliseconds;
+      debugPrint('$_tag ❌ POST FAILED — HTTP ${e.response?.statusCode ?? 'no-response'} '
+          '(${e.type.name}) in ${ms}ms | ${entries.length} line(s) re-queued');
+      debugPrint('$_tag    reason: ${e.response?.data ?? e.message}');
       throw ApiException.fromDio(e);
     } on FormatException catch (e) {
+      debugPrint('$_tag ❌ RESPONSE PARSE FAILED — ${e.message}');
       throw ApiException(e.message);
     }
   }
 
-  /// Folds a flat, chronologically-ordered list of captured lines into the
-  /// chat-shaped upload payload: one entry per open chat, each holding its
-  /// messages in the order they were read off the screen. Order within a
-  /// conversation is preserved; a `LinkedHashMap` also keeps the conversations
-  /// themselves in first-seen order.
-  List<Map<String, dynamic>> _groupByConversation(
-    List<ScreenMessageEntry> entries,
-  ) {
-    final groups = <String, Map<String, dynamic>>{};
-    for (final e in entries) {
-      final key = '${e.packageName}|${e.conversation}';
-      final group = groups.putIfAbsent(
-        key,
-        () => <String, dynamic>{
-          'package': e.packageName,
-          'app': e.appName,
-          'conversation': e.conversation,
-          'messages': <Map<String, dynamic>>[],
-        },
-      );
-      (group['messages'] as List<Map<String, dynamic>>)
-          .add(e.toChatMessageJson());
-    }
-    return groups.values.toList();
-  }
-
-  /// Detailed console dump — the "see every captured chat line" view, now laid
-  /// out like a chat (sent lines indented right, received left) so the two-sided
-  /// structure is visible at a glance.
-  void _logPayload(
-    List<ScreenMessageEntry> entries,
-    Map<String, dynamic> payload,
-  ) {
-    if (!kDebugMode) return;
-    debugPrint('$_tag ━━━━━━━━━━ batch of ${entries.length} ━━━━━━━━━━');
-    for (var i = 0; i < entries.length; i++) {
-      final e = entries[i];
-      final chat = e.conversation.isNotEmpty ? e.conversation : '(unknown chat)';
-      final side = switch (e.direction) {
-        'sent' => '                    →',
-        'received' => '←',
-        _ => '·',
-      };
-      debugPrint('$_tag #${i + 1}  ${e.appName}  chat="$chat"');
-      debugPrint('$_tag  $side ${e.text}');
-      debugPrint('$_tag     [${e.direction}] ${e.capturedAt.toIso8601String()}');
-    }
-    final mode = _uploadEnabled ? 'POST → $_endpoint' : 'WOULD POST (DISABLED)';
-    debugPrint('$_tag 📦 $mode');
-    debugPrint('$_tag ${const JsonEncoder.withIndent('  ').convert(payload)}');
-  }
 }
 
 final screenCaptureRepositoryProvider =

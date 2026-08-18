@@ -94,6 +94,11 @@ flutter {
 dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'
+    // FEATURE A: the native capture services enqueue an expedited WorkManager
+    // one-shot to drain the social queue immediately (see ExpeditedUpload.kt).
+    // The flutter_workmanager plugin already pulls WorkManager in transitively;
+    // this makes the androidx.work API an explicit compile dependency.
+    implementation 'androidx.work:work-runtime-ktx:2.9.1'
 }
 
 // Force androidx.core to a version compatible with AGP 8.9.1

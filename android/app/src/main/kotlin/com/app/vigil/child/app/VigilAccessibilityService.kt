@@ -88,6 +88,8 @@ class VigilAccessibilityService : AccessibilityService() {
             val conversation = guessConversation(lines.map { it.text })
             val now = System.currentTimeMillis()
             val appName = SocialApps.nameFor(pkg)
+            var appendedNew = false
+            var newLines = 0
 
             for (line in lines) {
                 val clean = line.text.trim()
@@ -114,7 +116,22 @@ class VigilAccessibilityService : AccessibilityService() {
                 // De-dup on app + open-chat + direction + text so scrolling
                 // doesn't re-log the same visible bubble repeatedly.
                 val dedup = "$pkg|$conversation|$direction|$clean"
-                SocialQueueWriter.append(applicationContext, FILE, obj, dedup)
+                if (SocialQueueWriter.append(applicationContext, FILE, obj, dedup)) {
+                    appendedNew = true
+                    newLines++
+                    // Per-line chat text is verbose-only: `adb logcat -s VigilA11y:V`
+                    // to see it. Default level shows counts only.
+                    Log.v(TAG, "captured $appName | chat=\"${conversation ?: "?"}\" | $direction | \"$clean\"")
+                }
+            }
+
+            // FEATURE A: only fire an expedited upload when this pass actually
+            // wrote new lines, and only once per pass (KEEP coalesces bursts too).
+            if (appendedNew) {
+                Log.d(TAG, "QUEUED $newLines new line(s) from $appName into $FILE — requesting expedited upload")
+                ExpeditedUpload.trigger(applicationContext)
+            } else {
+                Log.v(TAG, "$appName screen read: ${lines.size} line(s), all already queued — nothing new")
             }
         } catch (t: Throwable) {
             Log.w(TAG, "capture failed", t)

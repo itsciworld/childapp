@@ -83,9 +83,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     // React to state changes for side effects (navigation / snackbars).
     ref.listen<LoginState>(loginViewModelProvider, (previous, next) {
       if (next.status == LoginStatus.success && next.response != null) {
-        // login-and-send-otp returns no token; the verify-OTP screen only
-        // needs the email — the parent enters the emailed OTP there.
-        Nav.toVerifyOtp(context, _emailController.text.trim());
+        // login-and-send-otp returns no token; the verify-OTP screen needs the
+        // email (the parent enters the emailed OTP there) and the password, so
+        // its "Resend OTP" button can replay this same call.
+        Nav.toVerifyOtp(
+          context,
+          _emailController.text.trim(),
+          _passwordController.text,
+        );
         ref.read(loginViewModelProvider.notifier).reset();
       } else if (next.status == LoginStatus.error &&
           next.errorMessage != null) {
