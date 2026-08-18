@@ -1,3 +1,5 @@
+import '../../../auth/data/models/auth_tokens.dart';
+
 /// Parsed result of `POST /api/children/verify-otp-and-pair-device`.
 ///
 /// On success the backend returns the newly created `child` object and may
@@ -7,7 +9,7 @@ class VerifyOtpResponse {
     this.message,
     this.childId,
     this.parentId,
-    this.token,
+    this.tokens = const AuthTokens(),
     this.deviceKey,
   });
 
@@ -20,8 +22,15 @@ class VerifyOtpResponse {
   /// Id of the parent the child is paired to — needed when uploading SMS.
   final String? parentId;
 
-  /// Auth token for the paired device, when the backend returns one.
-  final String? token;
+  /// Auth tokens for the paired device. The refresh token is what lets a
+  /// returning child skip the OTP flow on the next launch.
+  final AuthTokens tokens;
+
+  /// Access token for the paired device, when the backend returns one.
+  String? get token => tokens.accessToken;
+
+  /// Long-lived refresh token, when the backend returns one.
+  String? get refreshToken => tokens.refreshToken;
 
   /// Backend-issued device key — must be sent back in the `x-device-key`
   /// header on authenticated uploads (e.g. SMS sync).
@@ -40,7 +49,7 @@ class VerifyOtpResponse {
               json['parentId'] ??
               json['parent_id'])
           ?.toString(),
-      token: json['token'] as String?,
+      tokens: AuthTokens.fromJson(json),
       deviceKey: json['deviceKey'] as String? ?? json['device_key'] as String?,
     );
   }

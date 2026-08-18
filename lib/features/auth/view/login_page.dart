@@ -92,6 +92,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           _passwordController.text,
         );
         ref.read(loginViewModelProvider.notifier).reset();
+      } else if (next.status == LoginStatus.sessionRestored) {
+        // Already paired to this account and just signed out — the session was
+        // restored silently, so skip the OTP screens and open the dashboard.
+        Nav.toChildHome(context);
+        ref.read(loginViewModelProvider.notifier).reset();
       } else if (next.status == LoginStatus.error &&
           next.errorMessage != null) {
         showAppToast(

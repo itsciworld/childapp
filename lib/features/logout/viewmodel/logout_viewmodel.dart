@@ -15,22 +15,24 @@ class LogoutViewModel extends Notifier<LogoutState> {
   @override
   LogoutState build() => const LogoutState();
 
-  /// Calls the logout endpoint and, on success, wipes the local session
-  /// (token + child/parent identity + device key) and stops the background
-  /// monitoring service so no further uploads run for the unpaired device.
+  /// Calls the logout endpoint and stops the background monitoring service so
+  /// no further uploads run.
+  ///
+  /// A normal logout is a *soft* sign-out — see [_signOut]: the access token is
+  /// dropped but the refresh token and the pairing survive, so signing back in
+  /// skips the OTP flow. Only an unpaired device gets the full wipe.
   Future<void> logout() async {
     state = state.copyWith(status: LogoutStatus.loading, clearError: true);
 
     try {
       final res = await ref.read(logoutRepositoryProvider).logout();
 
-      // Whether logout "succeeded" or the device was unpaired, we always wipe
-      // the local session so the next launch routes back to onboarding.
-      await _clearAllData();
-
       // Some backends return HTTP 200 with an unpaired payload in the body
       // (status: 401 / "device unpaired"), so check the parsed response too.
       if (_isUnpaired(res.message, res.status)) {
+        // The pairing itself is gone — wipe everything, including the refresh
+        // token, so the next sign-in has to go through the OTP flow.
+        await _clearAllData();
         state = state.copyWith(
           status: LogoutStatus.deviceUnpaired,
           errorMessage: (res.message?.isNotEmpty ?? false)
@@ -38,6 +40,11 @@ class LogoutViewModel extends Notifier<LogoutState> {
               : 'Device unpaired. This child profile was removed.',
         );
       } else {
+        // A normal logout: the device stays paired, so the refresh token and
+        // the child/parent identity are kept and signing back in restores the
+        // session without another OTP.
+        await _signOut();
+
         state = state.copyWith(
           status: LogoutStatus.success,
           message: res.message,
@@ -83,10 +90,26 @@ class LogoutViewModel extends Notifier<LogoutState> {
         msg.contains('profile was removed');
   }
 
-  /// Clears all stored data and stops background service
+  /// Signs the child out while keeping the device paired.
+  ///
+  /// Only the access token goes; the refresh token, the child/parent identity
+  /// and the device key stay so the next sign-in can restore the session
+  /// silently. The signed-out flag stops the splash from doing that on its own
+  /// — the child must sign in again first.
+  Future<void> _signOut() async {
+    final tokenStorage = ref.read(tokenStorageProvider);
+    await tokenStorage.clearAccessToken();
+    await tokenStorage.setSignedOut(true);
+
+    // Tear down the background isolate that syncs SMS / call logs / contacts.
+    FlutterBackgroundService().invoke('stopService');
+  }
+
+  /// Clears all stored data and stops background service — used when the device
+  /// is unpaired, where nothing is left to restore.
   Future<void> _clearAllData() async {
     await Future.wait([
-      ref.read(tokenStorageProvider).clearToken(),
+      ref.read(tokenStorageProvider).clearTokens(),
       ref.read(identityStorageProvider).clear(),
       ref.read(deviceStorageProvider).clear(),
     ]);

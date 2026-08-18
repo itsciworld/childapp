@@ -18,8 +18,9 @@ class VerifyOtpRepository {
 
   /// Verifies the emailed OTP, creates the child profile and pairs the device.
   ///
-  /// If the backend returns a token it is persisted for later authenticated
-  /// requests.
+  /// The returned tokens are persisted for later authenticated requests — the
+  /// refresh token is what lets the next launch restore the session silently
+  /// instead of walking the child through the OTP screens again.
   ///
   /// Throws [ApiException] on any network / server failure.
   Future<VerifyOtpResponse> verifyOtpAndPairDevice(
@@ -43,10 +44,13 @@ class VerifyOtpRepository {
       }
 
       final result = VerifyOtpResponse.fromJson(data);
-      final token = result.token;
-      if (token != null && token.isNotEmpty) {
-        await _tokenStorage.saveToken(token);
-      }
+      debugPrint('[VerifyOtpRepository] tokens received → '
+          'access=${result.tokens.hasAccessToken}, '
+          'refresh=${result.tokens.hasRefreshToken}');
+      await _tokenStorage.saveTokens(
+        accessToken: result.tokens.accessToken,
+        refreshToken: result.tokens.refreshToken,
+      );
       return result;
     } on DioException catch (e) {
       throw ApiException.fromDio(e);

@@ -1,6 +1,18 @@
 import '../data/models/login_response.dart';
 
-enum LoginStatus { initial, loading, success, error }
+enum LoginStatus {
+  initial,
+  loading,
+
+  /// Credentials accepted and an OTP was emailed — go to the verify screen.
+  success,
+
+  /// This device was already paired to the same account and just signed out:
+  /// the previous session was restored, so skip the OTP and open the dashboard.
+  sessionRestored,
+
+  error,
+}
 
 /// Immutable UI state for the login screen, driven by [LoginViewModel].
 class LoginState {

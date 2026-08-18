@@ -5,6 +5,7 @@ import '../../../core/device/device_info_service.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/storage/device_storage.dart';
 import '../../../core/storage/identity_storage.dart';
+import '../../../core/storage/token_storage.dart';
 import '../../auth/data/models/login_request.dart';
 import '../../auth/data/repositories/auth_repository.dart';
 import '../../device/data/repositories/device_repository.dart';
@@ -66,13 +67,19 @@ class VerifyOtpViewModel extends Notifier<VerifyOtpState> {
       }
 
       // Persist the identity so the background SMS sync can read it later, and
-      // the home screen can greet the child by name.
+      // the home screen can greet the child by name. The parent email is kept
+      // too: a later sign-in on this device is matched against it before the
+      // session is restored without an OTP.
       await ref.read(identityStorageProvider).save(
             childId: response.childId,
             parentId: response.parentId,
             childName: trimmedName,
             childAge: age,
+            parentEmail: trimmedEmail,
           );
+
+      // A fresh pairing supersedes any earlier logout.
+      await ref.read(tokenStorageProvider).setSignedOut(false);
 
       // Persist this device's name / id (already read above) locally, alongside
       // the backend-issued device key needed for the `x-device-key` header.

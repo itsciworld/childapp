@@ -5,8 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vigil1/core/appimages/app_images.dart';
 import 'package:vigil1/core/device/device_info_service.dart';
 import 'package:vigil1/core/storage/device_storage.dart';
-import 'package:vigil1/core/storage/identity_storage.dart';
-import 'package:vigil1/core/storage/token_storage.dart';
+import 'package:vigil1/features/auth/viewmodel/session_resolver.dart';
 import 'package:vigil1/route_names.dart';
 import 'package:vigil1/services/background_services/background_permissions.dart';
 
@@ -27,27 +26,33 @@ class _SplashViewState extends ConsumerState<SplashView> {
     _resolveSession();
   }
 
-  /// Decides where to go after the splash branding delay:
+  /// Decides where to go after the splash branding delay, by asking
+  /// [SessionResolver] to restore the stored session:
   ///
-  /// - If a pairing token and a complete child/parent identity are already
-  ///   stored, the device is paired → jump straight to the child home screen.
-  /// - Otherwise start the normal onboarding flow from the login screen.
+  /// - A stored refresh token is exchanged for a fresh access token silently
+  ///   (`POST /api/auth/refresh-token`) → jump straight to the child home
+  ///   screen, so a returning child never sees the OTP flow again.
+  /// - Otherwise (nothing stored, or the refresh token was rejected) start the
+  ///   normal onboarding flow from the login screen.
   Future<void> _resolveSession() async {
     final results = await Future.wait([
       Future<void>.delayed(const Duration(seconds: 1)),
-      ref.read(tokenStorageProvider).getToken(),
-      ref.read(identityStorageProvider).read(),
-      _refreshDeviceInfo(),
+      ref.read(sessionResolverProvider).resolve(),
     ]);
 
-    final token = results[1] as String?;
-    final identity = results[2] as Identity;
-    final isPaired = (token != null && token.isNotEmpty) && identity.isComplete;
+    final destination = results[1] as SessionDestination;
+
+    // Persist this phone's name / id only after the session is resolved: a
+    // rejected refresh token wipes device storage, which would otherwise race
+    // with (and discard) the values written here.
+    await _refreshDeviceInfo();
 
     if (!mounted) return;
     Navigator.pushReplacementNamed(
       context,
-      isPaired ? RouteNames.childHome : RouteNames.login,
+      destination == SessionDestination.childHome
+          ? RouteNames.childHome
+          : RouteNames.login,
     );
 
     // Now that the splash has been shown and we've moved to the next screen,

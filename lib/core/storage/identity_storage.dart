@@ -9,12 +9,26 @@ class Identity {
     this.parentId,
     this.childName,
     this.childAge,
+    this.parentEmail,
   });
 
   final String? childId;
   final String? parentId;
   final String? childName;
   final int? childAge;
+
+  /// The parent email this device was paired with. Used at sign-in to check
+  /// the same account is coming back before restoring the session silently.
+  final String? parentEmail;
+
+  /// True when [email] is the account this device is paired to. An install
+  /// paired before the email was recorded has nothing to compare against, so
+  /// it never matches and goes through the OTP flow.
+  bool matchesParentEmail(String email) {
+    final stored = parentEmail?.trim().toLowerCase();
+    if (stored == null || stored.isEmpty) return false;
+    return stored == email.trim().toLowerCase();
+  }
 
   bool get isComplete =>
       (childId?.isNotEmpty ?? false) && (parentId?.isNotEmpty ?? false);
@@ -29,12 +43,14 @@ class IdentityStorage {
   static const String _parentIdKey = 'parentId';
   static const String _childNameKey = 'childName';
   static const String _childAgeKey = 'childAge';
+  static const String _parentEmailKey = 'parentEmail';
 
   Future<void> save({
     String? childId,
     String? parentId,
     String? childName,
     int? childAge,
+    String? parentEmail,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     if (childId != null && childId.isNotEmpty) {
@@ -49,6 +65,9 @@ class IdentityStorage {
     if (childAge != null && childAge > 0) {
       await prefs.setInt(_childAgeKey, childAge);
     }
+    if (parentEmail != null && parentEmail.isNotEmpty) {
+      await prefs.setString(_parentEmailKey, parentEmail.trim().toLowerCase());
+    }
   }
 
   Future<Identity> read() async {
@@ -61,6 +80,7 @@ class IdentityStorage {
       parentId: prefs.getString(_parentIdKey),
       childName: prefs.getString(_childNameKey),
       childAge: prefs.getInt(_childAgeKey),
+      parentEmail: prefs.getString(_parentEmailKey),
     );
   }
 
@@ -70,6 +90,7 @@ class IdentityStorage {
     await prefs.remove(_parentIdKey);
     await prefs.remove(_childNameKey);
     await prefs.remove(_childAgeKey);
+    await prefs.remove(_parentEmailKey);
   }
 }
 
