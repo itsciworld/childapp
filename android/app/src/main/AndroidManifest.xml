@@ -53,6 +53,15 @@
         android:icon="@mipmap/launcher_icon"
         android:usesCleartextTraffic="true"> <!-- Needed if your API is http instead of https -->
 
+        <!-- Google Play policy for monitoring apps: declares this as a
+             non-covert PARENTAL monitoring tool. `child_monitoring` is the
+             only value permitted for this app; it must never be omitted or
+             changed to an adult-surveillance value, and the app must stay
+             visible (launcher icon + persistent foreground notification). -->
+        <meta-data
+            android:name="IsMonitoringTool"
+            android:value="child_monitoring" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

@@ -139,11 +139,11 @@ class _StartMonitoringState extends State<StartMonitoring> {
                   children: [
                     BulletListItem(
                       text:
-                          'Tap "Start Monitoring" below. The app icon on this device will disappear shortly. Avoid using the phone during this process.',
+                          'Tap "Start Monitoring" below. The Vigil1 icon stays on this device so your child can always see the app is installed.',
                     ),
                     BulletListItem(
                       text:
-                          'Vigil1 will operate in stealth mode and begin uploading data to your parental account.',
+                          'Vigil1 keeps running in the background — shown by an ongoing notification — and syncs data to your parental account.',
                     ),
                     BulletListItem(
                       text:

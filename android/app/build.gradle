@@ -62,7 +62,7 @@ android {
     defaultConfig {
         applicationId "com.app.vigil.child.app"
         minSdkVersion 24
-        targetSdkVersion 34
+        targetSdkVersion 35
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
         multiDexEnabled true
